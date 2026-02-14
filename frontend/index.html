@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Pegasus - Malware Analysis Platform</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Fira Code', 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #c9c9c9;
+            min-height: 100vh;
+            padding: 20px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* ASCII Header */
+        .ascii-header {
+            color: #ff4444;
+            white-space: pre;
+            font-size: 9px;
+            line-height: 1.15;
+            margin-bottom: 30px;
+            text-shadow: 0 0 10px rgba(255, 68, 68, 0.4);
+            overflow-x: auto;
+        }
+
+        @media (max-width: 768px) {
+            .ascii-header {
+                font-size: 5px;
+            }
+        }
+
+        /* Cards */
+        .card {
+            background: #111;
+            border: 1px solid #2a2a2a;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            padding: 20px;
+        }
+
+        .card-title {
+            color: #fff;
+            font-size: 1em;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .card-subtitle {
+            color: #888;
+            font-size: 0.85em;
+            margin-bottom: 15px;
+        }
+
+        .note {
+            color: #666;
+            font-size: 0.75em;
+            margin-bottom: 15px;
+        }
+
+        /* Upload Form */
+        .upload-form {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .file-btn {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #aaa;
+            padding: 8px 14px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+
+        .file-btn:hover {
+            background: #222;
+            border-color: #444;
+        }
+
+        .file-name {
+            color: #666;
+            font-size: 0.8em;
+            max-width: 250px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-name.has-file {
+            color: #ffcc00;
+        }
+
+        .file-name.has-file::before {
+            content: "⚠ ";
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .input-group label {
+            color: #888;
+            font-size: 0.85em;
+        }
+
+        .text-input {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            color: #c9c9c9;
+            padding: 8px 10px;
+            border-radius: 3px;
+            font-family: inherit;
+            font-size: 0.85em;
+            width: 100px;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: #ff4444;
+        }
+
+        .analyze-btn {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #aaa;
+            padding: 8px 16px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+
+        .analyze-btn:hover {
+            background: #222;
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Status Messages */
+        .status-line {
+            margin: 15px 0;
+            font-size: 0.9em;
+        }
+
+        .status-line.success {
+            color: #33ff33;
+        }
+
+        .status-line.error {
+            color: #ff4444;
+        }
+
+        .status-line.info {
+            color: #ffcc00;
+        }
+
+        /* Result Display */
+        .result-header {
+            color: #33ff33;
+            font-size: 1em;
+            margin-bottom: 8px;
+        }
+
+        .result-classification {
+            font-size: 1.2em;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .result-classification.malicious {
+            color: #ff4444;
+        }
+
+        .result-classification.suspicious {
+            color: #ffcc00;
+        }
+
+        .result-classification.clean {
+            color: #33ff33;
+        }
+
+        .result-meta {
+            color: #888;
+            font-size: 0.8em;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .result-meta span {
+            margin-right: 15px;
+            white-space: nowrap;
+        }
+
+        /* Tracer Output */
+        .tracer-card {
+            background: #0d0d0d;
+            border: 1px solid #222;
+        }
+
+        .tracer-title {
+            color: #fff;
+            font-size: 1em;
+            font-weight: 600;
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #222;
+        }
+
+        .tracer-output {
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 0.8em;
+            line-height: 1.5;
+        }
+
+        .tracer-line {
+            padding: 2px 0;
+            display: flex;
+            gap: 8px;
+        }
+
+        .tracer-prefix {
+            color: #666;
+            flex-shrink: 0;
+        }
+
+        .tracer-text {
+            color: #888;
+        }
+
+        .tracer-text.info {
+            color: #33ff33;
+        }
+
+        .tracer-text.warn {
+            color: #ffcc00;
+        }
+
+        .tracer-text.error {
+            color: #ff4444;
+        }
+
+        .tracer-text.debug {
+            color: #666;
+        }
+
+        /* Section Headers */
+        .section-header {
+            color: #33ff33;
+            font-size: 0.95em;
+            font-weight: 600;
+            margin: 20px 0 10px 0;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #222;
+        }
+
+        /* Data Rows */
+        .data-row {
+            display: flex;
+            padding: 6px 0;
+            font-size: 0.85em;
+            border-bottom: 1px solid #1a1a1a;
+        }
+
+        .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            color: #ffcc00;
+            width: 120px;
+            flex-shrink: 0;
+        }
+
+        .data-value {
+            color: #c9c9c9;
+            word-break: break-all;
+        }
+
+        /* Hash Display */
+        .hash-block {
+            background: #0a0a0a;
+            border-left: 3px solid #333;
+            padding: 12px 15px;
+            margin: 10px 0;
+        }
+
+        .hash-row {
+            display: flex;
+            padding: 3px 0;
+            font-size: 0.8em;
+        }
+
+        .hash-label {
+            color: #666;
+            width: 70px;
+        }
+
+        .hash-value {
+            color: #888;
+            word-break: break-all;
+        }
+
+        /* Event Lists */
+        .event-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #0a0a0a;
+            border: 1px solid #1a1a1a;
+            border-radius: 3px;
+            padding: 10px;
+            margin: 8px 0;
+        }
+
+        .event-item {
+            display: flex;
+            gap: 10px;
+            padding: 5px 0;
+            font-size: 0.8em;
+            border-bottom: 1px solid #111;
+        }
+
+        .event-item:last-child {
+            border-bottom: none;
+        }
+
+        .event-tag {
+            color: #000;
+            font-size: 0.7em;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        .event-tag.red {
+            background: #ff4444;
+        }
+
+        .event-tag.yellow {
+            background: #ffcc00;
+        }
+
+        .event-tag.green {
+            background: #33ff33;
+        }
+
+        .event-tag.blue {
+            background: #4488ff;
+        }
+
+        .event-tag.purple {
+            background: #aa66ff;
+        }
+
+        .event-tag.cyan {
+            background: #00cccc;
+        }
+
+        .event-content {
+            color: #888;
+            word-break: break-all;
+        }
+
+        /* Stats Summary */
+        .stats-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin: 15px 0;
+            padding: 15px;
+            background: #0a0a0a;
+            border: 1px solid #1a1a1a;
+            border-radius: 3px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .stat-value.red {
+            color: #ff4444;
+        }
+
+        .stat-value.yellow {
+            color: #ffcc00;
+        }
+
+        .stat-value.green {
+            color: #33ff33;
+        }
+
+        .stat-value.blue {
+            color: #4488ff;
+        }
+
+        .stat-label {
+            font-size: 0.7em;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #111;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #ffcc00;
+            font-size: 0.9em;
+        }
+
+        .spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #333;
+            border-top-color: #ff4444;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <pre class="ascii-header">
+        ██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗    ██████╗ ███████╗ ██████╗  █████╗ ███████╗██╗   ██╗███████╗
+        ██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝    ██╔══██╗██╔════╝██╔════╝ ██╔══██╗██╔════╝██║   ██║██╔════╝
+        ██████╔╝██████╔╝██║   ██║     ██║█████╗  ██║        ██║       ██████╔╝█████╗  ██║  ███╗███████║███████╗██║   ██║███████╗
+        ██╔═══╝ ██╔══██╗██║   ██║██   ██║██╔══╝  ██║        ██║       ██╔═══╝ ██╔══╝  ██║   ██║██╔══██║╚════██║██║   ██║╚════██║
+        ██║     ██║  ██║╚██████╔╝╚█████╔╝███████╗╚██████╗   ██║       ██║     ███████╗╚██████╔╝██║  ██║███████║╚██████╔╝███████║
+        ╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝       ╚═╝     ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚══════╝
+                                                                                                                        
+        </pre>
+
+        <!-- Upload Card -->
+        <div class="card">
+            <div class="card-title">Binary Analysis & Malware Family Classification</div>
+            <div class="card-subtitle">Upload a malware sample for static and dynamic analysis</div>
+            <div class="upload-form">
+                <button class="file-btn" onclick="document.getElementById('fileInput').click()">Choose File</button>
+                <span class="file-name" id="fileName">No file selected</span>
+                <input type="file" id="fileInput">
+                <div class="input-group">
+                    <label for="passwordInput">Zip Password:</label>
+                    <input type="text" id="passwordInput" class="text-input" placeholder="(optional)">
+                </div>
+                <div class="input-group" style="margin-top:10px;">
+                    <input type="checkbox" id="reanalyzeInput">
+                    <label for="reanalyzeInput" style="display:inline; margin-left:5px;">Re-analyze if already
+                        exists</label>
+                </div>
+                <button class="analyze-btn" id="analyzeBtn" onclick="analyzeFile()">Analyze Sample</button>
+            </div>
+
+            <div id="statusArea"></div>
+        </div>
+
+        <!-- Search Card -->
+        <div class="card">
+            <div class="card-title">Search Reports</div>
+            <div class="card-subtitle">Lookup analysis results by SHA256 hash</div>
+            <div class="upload-form">
+                <input type="text" id="searchInput" class="text-input" style="width: 400px;"
+                    placeholder="Enter SHA256 hash...">
+                <button class="analyze-btn" id="searchBtn" onclick="searchByHash()">Search</button>
+            </div>
+        </div>
+
+        <!-- Results Card -->
+        <div class="card" id="resultsCard" style="display: none;">
+            <div id="resultsContent"></div>
+        </div>
+
+        <!-- Tracer Output Card -->
+        <div class="card tracer-card" id="tracerCard" style="display: none;">
+            <div class="tracer-title">Tracer Output:</div>
+            <div class="tracer-output" id="tracerOutput"></div>
+        </div>
+    </div>
+
+    <!-- <div class="analysis-results">
+        <div class="card">
+            <h3>Network Logs</h3>
+            <pre id="network-logs">Loading...</pre>
+        </div>
+        <div class="card">
+            <h3>Commands Executed</h3>
+            <pre id="commands-executed">Loading...</pre>
+        </div>
+        <div class="card">
+            <h3>Files Accessed</h3>
+            <pre id="files-accessed">Loading...</pre>
+        </div>
+        <div class="card">
+            <h3>QEMU Output</h3>
+            <pre id="qemu-output">Loading...</pre>
+        </div>
+    </div> -->
+
+    <script>
+        const API_BASE = window.location.origin;
+        let currentSampleId = null;
+        let selectedFile = null;
+        let allStrings = [];
+        let stringsDisplayed = 50;
+
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+
+        fileInput.addEventListener('change', (e) => {
+            selectedFile = e.target.files[0];
+            if (selectedFile) {
+                fileName.textContent = selectedFile.name;
+                fileName.classList.add('has-file');
+            } else {
+                fileName.textContent = 'No file selected';
+                fileName.classList.remove('has-file');
+            }
+        });
+
+        document.body.addEventListener('dragover', (e) => e.preventDefault());
+        document.body.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                selectedFile = file;
+                fileName.textContent = file.name;
+                fileName.classList.add('has-file');
+            }
+        });
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function log(message, type = 'info') {
+            const tracerCard = document.getElementById('tracerCard');
+            const tracerOutput = document.getElementById('tracerOutput');
+            tracerCard.style.display = 'block';
+
+            const prefixMap = { 'info': '[=]', 'success': '[+]', 'error': '[!]', 'warn': '[*]', 'debug': '[-]' };
+            const line = document.createElement('div');
+            line.className = 'tracer-line';
+            line.innerHTML = `<span class="tracer-prefix">${prefixMap[type] || '[>]'}</span><span class="tracer-text ${type}">${escapeHtml(message)}</span>`;
+            tracerOutput.appendChild(line);
+            tracerOutput.scrollTop = tracerOutput.scrollHeight;
+        }
+
+        function setStatus(message, type = 'info') {
+            const statusArea = document.getElementById('statusArea');
+            statusArea.innerHTML = `<div class="status-line ${type}">[${type === 'success' ? '+' : type === 'error' ? '!' : '*'}] ${escapeHtml(message)}</div>`;
+        }
+
+        async function analyzeFile() {
+            if (!selectedFile) {
+                setStatus('Please select a file first', 'error');
+                return;
+            }
+
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            analyzeBtn.disabled = true;
+
+            document.getElementById('tracerOutput').innerHTML = '';
+            document.getElementById('resultsCard').style.display = 'none';
+
+            try {
+                setStatus('Uploading sample...', 'info');
+                log('Uploading ' + selectedFile.name, 'info');
+
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                const password = document.getElementById('passwordInput').value;
+                if (password) formData.append('password', password);
+                const reanalyze = document.getElementById('reanalyzeInput').checked;
+                if (reanalyze) formData.append('reanalyze', 'true');
+
+                const uploadRes = await fetch(API_BASE + '/api/upload/', { method: 'POST', body: formData });
+                if (!uploadRes.ok) throw new Error('Upload failed: ' + (await uploadRes.text()));
+                const uploadData = await uploadRes.json();
+                currentSampleId = uploadData.sample_id;
+                log('Sample uploaded: ' + currentSampleId, 'success');
+
+                setStatus('Analysis started automatically...', 'info');
+                log('Analysis pipeline triggered', 'success');
+
+                // Poll for results
+                let retries = 0;
+                const maxRetries = 120;
+                while (retries < maxRetries) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    const statusRes = await fetch(API_BASE + '/api/analysis/' + currentSampleId);
+                    const data = await statusRes.json();
+
+                    if (data.status === 'completed') {
+                        setStatus('Analysis complete!', 'success');
+                        log('Analysis completed successfully', 'success');
+                        displayResults(data);
+                        break;
+                    } else if (data.status === 'failed') {
+                        throw new Error('Analysis failed: ' + (data.error || 'Unknown error'));
+                    } else {
+                        log('Status: ' + data.status, 'debug');
+                        if (data.status === 'analyzing_static') setStatus('Running static analysis...', 'info');
+                        else if (data.status === 'analyzing_dynamic') setStatus('Running dynamic analysis...', 'info');
+                    }
+                    retries++;
+                }
+
+                if (retries >= maxRetries) throw new Error('Analysis timeout');
+
+            } catch (err) {
+                setStatus(err.message, 'error');
+                log(err.message, 'error');
+            } finally {
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        async function searchByHash() {
+            const hash = document.getElementById('searchInput').value.trim();
+            if (!hash) return;
+
+            const searchBtn = document.getElementById('searchBtn');
+            searchBtn.disabled = true;
+            document.getElementById('resultsCard').style.display = 'none';
+
+            try {
+                setStatus('Searching for report...', 'info');
+                const res = await fetch(`${API_BASE}/api/analysis/?sha256=${hash}`);
+                if (!res.ok) throw new Error('Search failed');
+
+                const data = await res.json();
+                if (data.total === 0) {
+                    setStatus('No report found for this hash', 'warn');
+                    return;
+                }
+
+                const sampleId = data.samples[0].sample_id;
+                log('Report found: ' + sampleId, 'success');
+                setStatus('Loading results...', 'info');
+
+                // Get full analysis data
+                const reportRes = await fetch(`${API_BASE}/api/analysis/${sampleId}`);
+                if (!reportRes.ok) throw new Error('Failed to load report details');
+
+                const reportData = await reportRes.json();
+                displayResults(reportData);
+                setStatus('Report loaded', 'success');
+            } catch (err) {
+                setStatus(err.message, 'error');
+            } finally {
+                searchBtn.disabled = false;
+            }
+        }
+
+        async function reanalyzeSample(sampleId) {
+            if (!confirm('Are you sure you want to trigger a fresh analysis run? Previous results for this run will be cleared.')) return;
+
+            try {
+                setStatus('Triggering re-analysis...', 'info');
+                log('Requesting re-analysis for ' + sampleId, 'info');
+
+                const res = await fetch(`${API_BASE}/api/analysis/${sampleId}/reanalyze`, { method: 'POST' });
+                if (!res.ok) throw new Error('Re-analysis request failed');
+
+                log('Re-analysis started successfully', 'success');
+
+                // Start polling similar to analyzeFile
+                pollAnalysis(sampleId);
+            } catch (err) {
+                setStatus(err.message, 'error');
+            }
+        }
+
+        async function pollAnalysis(sampleId) {
+            let retries = 0;
+            const maxRetries = 120;
+            while (retries < maxRetries) {
+                await new Promise(r => setTimeout(r, 2000));
+                const statusRes = await fetch(API_BASE + '/api/analysis/' + sampleId);
+                const data = await statusRes.json();
+
+                if (data.status === 'completed') {
+                    setStatus('Analysis complete!', 'success');
+                    log('Analysis completed successfully', 'success');
+                    displayResults(data);
+                    break;
+                } else if (data.status === 'failed') {
+                    setStatus('Analysis failed: ' + (data.error || 'Unknown error'), 'error');
+                    break;
+                } else {
+                    log('Status: ' + data.status, 'debug');
+                    if (data.status === 'analyzing_static') setStatus('Running static analysis...', 'info');
+                    else if (data.status === 'analyzing_dynamic') setStatus('Running dynamic analysis...', 'info');
+                }
+                retries++;
+            }
+        }
+
+
+        function displayResults(data) {
+            const resultsCard = document.getElementById('resultsCard');
+            const resultsContent = document.getElementById('resultsContent');
+            resultsCard.style.display = 'block';
+
+            const staticRes = data.analysis_results?.static?.results || {};
+            const dynamicRes = data.analysis_results?.dynamic?.results || {};
+            const capa = staticRes.capa || {};
+            const behaviorSummary = dynamicRes.behavior_summary || {};
+
+            // Classification
+            const classification = data.classification || 'unknown';
+            const classDisplay = classification.charAt(0).toUpperCase() + classification.slice(1);
+
+            let html = `<div class="result-header">[+] Result: <span class="result-classification ${classification}">${escapeHtml(classDisplay)}</span></div>`;
+
+            // File metadata
+            const fileType = staticRes.file_info?.type || 'Unknown';
+            const fileSize = staticRes.file_info?.size || 'N/A';
+            const sha256 = staticRes.hashes?.sha256 || 'N/A';
+
+            html += `<div class="result-meta">
+                <span>File Type: ${escapeHtml(fileType)}</span>
+                <span>Size: ${fileSize} bytes</span>
+                <span>SHA256: ${sha256.substring(0, 16)}...</span>
+                <button class="file-btn" style="margin-left:auto; color:#ffcc00; border-color:#ffcc00" onclick="reanalyzeSample('${data.sample_id}')">↻ Re-analyze</button>
+            </div>`;
+
+            // Behavior Summary (user-friendly)
+            if (Object.keys(behaviorSummary).length > 0) {
+                html += `<div class="section-header">Behavior Summary</div>`;
+                html += '<div class="event-list">';
+                if (behaviorSummary.process_count > 0) html += `<div class="event-item"><span class="event-tag blue">PROC</span><span class="event-content">Processes spawned: ${behaviorSummary.process_count}</span></div>`;
+                if (behaviorSummary.commands_executed_count > 0) html += `<div class="event-item"><span class="event-tag red">CMD</span><span class="event-content">Commands executed: ${behaviorSummary.commands_executed_count}</span></div>`;
+                if (behaviorSummary.files_accessed_count > 0) html += `<div class="event-item"><span class="event-tag green">FILE</span><span class="event-content">Files accessed: ${behaviorSummary.files_accessed_count}</span></div>`;
+                if (behaviorSummary.files_created > 0) html += `<div class="event-item"><span class="event-tag yellow">CREATE</span><span class="event-content">Files created: ${behaviorSummary.files_created}</span></div>`;
+                if (behaviorSummary.network_connections_count > 0) html += `<div class="event-item"><span class="event-tag red">NET</span><span class="event-content">Network connections: ${behaviorSummary.network_connections_count}</span></div>`;
+                if (behaviorSummary.dns_queries_count > 0) html += `<div class="event-item"><span class="event-tag yellow">DNS</span><span class="event-content">DNS queries: ${behaviorSummary.dns_queries_count}</span></div>`;
+                if (behaviorSummary.processes_killed_count > 0) html += `<div class="event-item"><span class="event-tag red">KILL</span><span class="event-content">Processes killed: ${behaviorSummary.processes_killed_count}</span></div>`;
+                if (behaviorSummary.suspicious_behaviors && behaviorSummary.suspicious_behaviors.length > 0) {
+                    html += `<div class="event-item"><span class="event-tag purple">SUSPICIOUS</span><span class="event-content">${escapeHtml(behaviorSummary.suspicious_behaviors.join(", "))}</span></div>`;
+                }
+                html += '</div>';
+            }
+
+            // Stats Summary
+            const attackCount = (capa.attack || []).length;
+            const mbcCount = (capa.mbc || []).length;
+            const capsCount = (capa.capabilities || []).length;
+            const netCount = (dynamicRes.network_connections || []).length + (dynamicRes.dns_queries || []).length;
+            const cmdCount = (dynamicRes.commands_executed || []).length;
+            const fileCount = (dynamicRes.files_accessed || []).length;
+
+            html += `<div class="stats-row">
+                <div class="stat-item"><div class="stat-value red">${attackCount}</div><div class="stat-label">ATT&CK</div></div>
+                <div class="stat-item"><div class="stat-value yellow">${mbcCount}</div><div class="stat-label">MBC</div></div>
+                <div class="stat-item"><div class="stat-value blue">${capsCount}</div><div class="stat-label">Capabilities</div></div>
+                <div class="stat-item"><div class="stat-value red">${netCount}</div><div class="stat-label">Network</div></div>
+                <div class="stat-item"><div class="stat-value yellow">${cmdCount}</div><div class="stat-label">Commands</div></div>
+                <div class="stat-item"><div class="stat-value green">${fileCount}</div><div class="stat-label">Files</div></div>
+            </div>`;
+
+            // Hashes
+            if (staticRes.hashes) {
+                html += `<div class="hash-block">
+                    <div class="hash-row"><span class="hash-label">MD5:</span><span class="hash-value">${staticRes.hashes.md5 || 'N/A'}</span></div>
+                    <div class="hash-row"><span class="hash-label">SHA1:</span><span class="hash-value">${staticRes.hashes.sha1 || 'N/A'}</span></div>
+                    <div class="hash-row"><span class="hash-label">SHA256:</span><span class="hash-value">${staticRes.hashes.sha256 || 'N/A'}</span></div>
+                    ${staticRes.hashes.ssdeep ? `<div class="hash-row"><span class="hash-label">SSDEEP:</span><span class="hash-value">${staticRes.hashes.ssdeep}</span></div>` : ''}
+                </div>`;
+            }
+
+            // ATT&CK Techniques
+            if (capa.attack?.length > 0) {
+                html += `<div class="section-header">MITRE ATT&CK Techniques (${capa.attack.length})</div>`;
+                html += '<div class="event-list">';
+                capa.attack.forEach(a => {
+                    html += `<div class="event-item"><span class="event-tag red">${a.id || 'ATT&CK'}</span><span class="event-content">${escapeHtml(a.technique || a.tactic || 'Unknown')}</span></div>`;
+                });
+                html += '</div>';
+            }
+
+            // MBC Behaviors
+            if (capa.mbc?.length > 0) {
+                html += `<div class="section-header">Malware Behavior Catalog (${capa.mbc.length})</div>`;
+                html += '<div class="event-list">';
+                capa.mbc.forEach(m => {
+                    html += `<div class="event-item"><span class="event-tag yellow">${m.id || 'MBC'}</span><span class="event-content">${escapeHtml(m.behavior || m.objective || 'Unknown')}</span></div>`;
+                });
+                html += '</div>';
+            }
+
+            // Capabilities
+            if (capa.capabilities?.length > 0) {
+                html += `<div class="section-header">Detected Capabilities (${capa.capabilities.length})</div>`;
+                html += '<div class="event-list">';
+                capa.capabilities.forEach(c => {
+                    const ns = c.namespace || 'capability';
+                    html += `<div class="event-item"><span class="event-tag blue">${ns}</span><span class="event-content">${escapeHtml(c.name)}</span></div>`;
+                });
+                html += '</div>';
+            }
+
+            // CAPA Note/Error
+            if (capa.note) {
+                html += `<div class="section-header">CAPA Info</div>`;
+                html += `<div class="hash-block"><span style="color:#888">${escapeHtml(capa.note)}</span></div>`;
+            }
+
+            // Commands Executed
+            if (dynamicRes.commands_executed?.length > 0) {
+                html += `<div class="section-header">Commands Executed (${dynamicRes.commands_executed.length})</div>`;
+                html += '<div class="event-list">';
+                dynamicRes.commands_executed.forEach(cmd => {
+                    const cmdStr = (typeof cmd === 'string') ? cmd : (cmd.cmdline || cmd.binary || JSON.stringify(cmd));
+                    html += `<div class="event-item"><span class="event-tag red">EXEC</span><span class="event-content">${escapeHtml(cmdStr)}</span></div>`;
+                });
+                html += '</div>';
+            }
+
+            // Files Accessed
+            if (dynamicRes.files_accessed?.length > 0) {
+                html += `<div class="section-header">Files Accessed (${dynamicRes.files_accessed.length})</div>`;
+                html += '<div class="event-list">';
+                dynamicRes.files_accessed.forEach(f => {
+                    const opColors = { 'read': 'blue', 'write': 'yellow', 'delete': 'red' };
+                    const color = opColors[f.operation] || 'blue';
+                    html += `<div class="event-item"><span class="event-tag ${color}">${(f.operation || 'ACCESS').toUpperCase()}</span><span class="event-content">${escapeHtml(f.path)}</span></div>`;
+                });
+                html += '</div>';
+            }
+
+            // Processes Killed
+            if (dynamicRes.processes_killed?.length > 0) {
+                html += `<div class="section-header">Processes Killed (${dynamicRes.processes_killed.length})</div>`;
+                html += '<div class="event-list">';
+                dynamicRes.processes_killed.forEach(p => {
+                    html += `<div class="event-item"><span class="event-tag red">KILL</span><span class="event-content">PID ${p.pid} (Signal ${p.signal})</span></div>`;
+                });
+                html += '</div>';
+            }
+
+            // Network Connections
+            if (dynamicRes.network_connections?.length > 0) {
+                html += `<div class="section-header">Network Connections (${dynamicRes.network_connections.length})</div>`;
+                html += '<div class="event-list">';
+                dynamicRes.network_connections.forEach(conn => {
+                    const proto = (conn.protocol || 'tcp').toUpperCase();
+                    html += `<div class="event-item"><span class="event-tag red">${proto}</span><span class="event-content">${conn.dst_ip}:${conn.dst_port}</span></div>`;
+                });
+                html += '</div>';
+            }
+
+            // DNS Queries
+            if (dynamicRes.dns_queries?.length > 0) {
+                html += `<div class="section-header">DNS Queries (${dynamicRes.dns_queries.length})</div>`;
+                html += '<div class="event-list">';
+                dynamicRes.dns_queries.forEach(dns => {
+                    html += `<div class="event-item"><span class="event-tag yellow">DNS</span><span class="event-content">${dns.server}:${dns.port}</span></div>`;
+                });
+                html += '</div>';
+            }
+
+            // URLs found in sample
+            if (staticRes.urls_found?.length > 0) {
+                html += `<div class="section-header">URLs Found in Sample (${staticRes.urls_found.length})</div>`;
+                html += '<div class="event-list">';
+                staticRes.urls_found.forEach(u => {
+                    html += `<div class="event-item"><span class="event-tag cyan">${(u.type || 'URL').toUpperCase()}</span><span class="event-content">${escapeHtml(u.url)}</span></div>`;
+                });
+                html += '</div>';
+            }
+
+            // System Calls (if available)
+            if (dynamicRes.system_calls?.length > 0) {
+                html += `<div class="section-header">System Calls (${dynamicRes.system_calls.length})</div>`;
+                html += '<div class="event-list" style="max-height: 150px;">';
+                dynamicRes.system_calls.slice(0, 20).forEach(sc => {
+                    html += `<div class="event-item"><span class="event-tag purple">SYSCALL</span><span class="event-content">${escapeHtml(sc)}</span></div>`;
+                });
+                if (dynamicRes.system_calls.length > 20) {
+                    html += `<div class="event-item"><span class="event-content" style="color:#666">... and ${dynamicRes.system_calls.length - 20} more syscalls</span></div>`;
+                }
+                html += '</div>';
+            }
+
+            // Debug info (from dynamic analysis monitor)
+            if (dynamicRes.debug) {
+                try {
+                    const dbg = dynamicRes.debug || {};
+                    const dbgText = JSON.stringify(dbg, null, 2);
+
+                    // Show a compact QEMU/execution summary first
+                    const execMethod = dynamicRes.execution_method || '';
+                    const qemuChosen = dbg.qemu_chosen || dbg.qemu_chosen === '' ? dbg.qemu_chosen : '';
+                    const upxUnpacked = (dbg.upx_unpacked === true) ? 'yes' : (dbg.upx_unpacked === false ? 'no' : 'unknown');
+
+                    html += `<div class="section-header">Execution / QEMU</div>`;
+                    html += `<div class="data-row"><div class="data-label">Method</div><div class="data-value">${escapeHtml(execMethod)}</div></div>`;
+                    if (qemuChosen) {
+                        html += `<div class="data-row"><div class="data-label">QEMU</div><div class="data-value">${escapeHtml(qemuChosen)}</div></div>`;
+                    }
+                    html += `<div class="data-row"><div class="data-label">UPX unpacked</div><div class="data-value">${escapeHtml(upxUnpacked)}</div></div>`;
+
+                    // Full debug blob
+                    html += `<div class="section-header">Debug Info</div>`;
+                    html += `<div class="event-list"><div class="event-item"><pre style="white-space:pre-wrap;max-height:200px;overflow:auto;color:#999">${escapeHtml(dbgText)}</pre></div></div>`;
+                } catch (e) {
+                    // Fallback: show as string
+                    html += `<div class="section-header">Debug Info</div>`;
+                    html += `<div class="event-list"><div class="event-item"><span class="event-content">${escapeHtml(String(dynamicRes.debug))}</span></div></div>`;
+                }
+            }
+
+            // Strings (sample)
+            if (staticRes.strings?.length > 0) {
+                allStrings = staticRes.strings;
+                stringsDisplayed = 50;
+
+                html += `<div class="section-header">Strings (${allStrings.length} total)</div>`;
+                html += `<div style="margin-bottom: 10px;">
+                    <input type="text" id="stringFilter" class="text-input" style="width: 100%;" placeholder="Filter strings..." onkeyup="filterStrings()">
+                </div>`;
+                html += '<div class="event-list" id="stringList" style="max-height: 300px;">';
+                html += renderStringItems(allStrings.slice(0, stringsDisplayed));
+                html += '</div>';
+
+                if (allStrings.length > stringsDisplayed) {
+                    html += `<div id="showMoreContainer" style="margin-top:10px; text-align:center;">
+                        <button class="file-btn" onclick="showMoreStrings()">Show More (+100)</button>
+                    </div>`;
+                }
+            }
+
+            resultsContent.innerHTML = html;
+        }
+
+        function filterStrings() {
+            const query = document.getElementById('stringFilter').value.toLowerCase();
+            const items = document.querySelectorAll('.string-item');
+            items.forEach(item => {
+                const text = item.getAttribute('data-string');
+                if (text.includes(query)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function renderStringItems(strings, startIdx = 0) {
+            let html = '';
+            strings.forEach((s, idx) => {
+                html += `<div class="event-item string-item" data-string="${escapeHtml(s.toLowerCase())}">
+                    <span class="event-tag blue" style="font-size:0.6em">#${startIdx + idx + 1}</span>
+                    <span class="event-content" style="font-family: monospace">${escapeHtml(s)}</span>
+                </div>`;
+            });
+            return html;
+        }
+
+        function showMoreStrings() {
+            const nextBatch = allStrings.slice(stringsDisplayed, stringsDisplayed + 100);
+            const container = document.getElementById('stringList');
+            if (container && nextBatch.length > 0) {
+                container.insertAdjacentHTML('beforeend', renderStringItems(nextBatch, stringsDisplayed));
+                stringsDisplayed += 100;
+
+                if (stringsDisplayed >= allStrings.length) {
+                    const btnContainer = document.getElementById('showMoreContainer');
+                    if (btnContainer) btnContainer.style.display = 'none';
+                }
+
+                // Re-apply filter if active
+                filterStrings();
+            }
+        }
+    </script>
+</body>
+
+</html>

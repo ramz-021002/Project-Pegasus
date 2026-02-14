@@ -1,0 +1,51 @@
+# FastAPI and ASGI server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+websockets>=12.0
+
+# Task queue
+celery[redis]>=5.3.0
+redis>=5.0.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+alembic>=1.12.0
+
+# Validation and settings
+pydantic>=2.4.0
+pydantic-settings>=2.0.0
+
+# File handling
+aiofiles>=23.2.0
+python-magic>=0.4.27
+
+# Malware analysis tools
+pefile>=2023.2.0
+yara-python>=4.3.0
+ssdeep>=3.4
+
+# Cryptography
+cryptography>=41.0.0
+
+# Docker SDK
+docker>=6.1.0
+
+# HTTP client
+httpx>=0.25.0
+
+# Logging and monitoring
+python-json-logger>=2.0.7
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+
+# Code quality
+black>=23.11.0
+flake8>=6.1.0
+mypy>=1.7.0
+
+pyzipper
