@@ -13,6 +13,7 @@ WORKDIR /analysis
 RUN apt-get update && apt-get install -y \
     libfuzzy-dev \
     libmagic1 \
+    xorsearch \
     && rm -rf /var/lib/apt/lists/*
 
 # Install additional Python packages (--ignore-installed needed for distutils packages in REMnux)
@@ -42,6 +43,7 @@ RUN apt-get update && apt-get install -y \
     libfuzzy-dev \
     libfuzzy2 \
     ssdeep \
+    xorsearch \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages for malware analysis
@@ -61,14 +63,26 @@ FROM base-${TARGETARCH} AS final
 # Set working directory
 WORKDIR /analysis
 
-# Download CAPA rules (v7.0.1 compatible tag)
+# Download CAPA rules and signatures
 RUN apt-get update && apt-get install -y curl unzip && \
-    mkdir -p /analysis/capa-rules && \
-    # Use v7.0.1 tag for compatible rules
+    mkdir -p /analysis/capa-rules /analysis/capa-signatures && \
+    # Rules
     curl -sL https://github.com/mandiant/capa-rules/archive/refs/tags/v7.0.1.zip -o /tmp/capa-rules.zip && \
     unzip -q /tmp/capa-rules.zip -d /tmp && \
     mv /tmp/capa-rules-7.0.1/* /analysis/capa-rules/ && \
-    rm -rf /tmp/capa-rules.zip /tmp/capa-rules-7.0.1 && \
+    # Signatures (from the main capa repo)
+    curl -sL https://github.com/mandiant/capa/archive/refs/heads/master.zip -o /tmp/capa.zip && \
+    unzip -q /tmp/capa.zip -d /tmp && \
+    mv /tmp/capa-master/sigs/* /analysis/capa-signatures/ && \
+    # Install Didier Stevens Suite (brxor, bbcrack, etc.)
+    curl -sL https://github.com/DidierStevens/DidierStevensSuite/archive/master.zip -o /tmp/suite.zip && \
+    unzip -q /tmp/suite.zip -d /tmp && \
+    mkdir -p /opt/didier-suite && \
+    cp /tmp/DidierStevensSuite-master/*.py /opt/didier-suite/ && \
+    chmod +x /opt/didier-suite/*.py && \
+    ln -sf /opt/didier-suite/brxor.py /usr/local/bin/brxor.py && \
+    ln -sf /opt/didier-suite/bbcrack.py /usr/local/bin/bbcrack.py && \
+    rm -rf /tmp/*.zip /tmp/capa-rules-7.0.1 /tmp/capa-master /tmp/DidierStevensSuite-master && \
     apt-get remove -y unzip && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Copy analysis script

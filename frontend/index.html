@@ -781,16 +781,23 @@
             let html = `<div class="result-header">[+] Result: <span class="result-classification ${classification}">${escapeHtml(classDisplay)}</span></div>`;
 
             // File metadata
-            const fileType = staticRes.file_info?.type || 'Unknown';
+            const fileType = staticRes.file_info?.type || staticRes.file_type || 'Unknown';
+            const typeDesc = staticRes.file_info?.type_desc || '';
             const fileSize = staticRes.file_info?.size || 'N/A';
             const sha256 = staticRes.hashes?.sha256 || 'N/A';
 
             html += `<div class="result-meta">
-                <span>File Type: ${escapeHtml(fileType)}</span>
+                <span>File Type: ${escapeHtml(fileType)} ${typeDesc ? `(${escapeHtml(typeDesc)})` : ''}</span>
                 <span>Size: ${fileSize} bytes</span>
                 <span>SHA256: ${sha256.substring(0, 16)}...</span>
                 <button class="file-btn" style="margin-left:auto; color:#ffcc00; border-color:#ffcc00" onclick="reanalyzeSample('${data.sample_id}')">↻ Re-analyze</button>
             </div>`;
+
+            // Text Preview / Script Source
+            if (staticRes.text_preview) {
+                html += `<div class="section-header">Script / Text Preview</div>`;
+                html += `<div class="event-list" style="max-height: 400px; font-family: monospace; white-space: pre-wrap; background: #050505; color: #aaa;">${escapeHtml(staticRes.text_preview)}</div>`;
+            }
 
             // Behavior Summary (user-friendly)
             if (Object.keys(behaviorSummary).length > 0) {
@@ -868,9 +875,58 @@
             }
 
             // CAPA Note/Error
-            if (capa.note) {
+            if (capa.note || capa.error) {
                 html += `<div class="section-header">CAPA Info</div>`;
-                html += `<div class="hash-block"><span style="color:#888">${escapeHtml(capa.note)}</span></div>`;
+                const msg = capa.error ? `Error: ${capa.error}` : capa.note;
+                const color = capa.error ? '#ff4444' : '#888';
+                html += `<div class="hash-block"><span style="color:${color}">${escapeHtml(msg)}</span></div>`;
+            }
+
+            // XOR Analysis Results
+            const xorRes = staticRes.xor_analysis || {};
+            if (xorRes.performed || xorRes.xorsearch_http?.length > 0 || xorRes.brxor?.length > 0 || xorRes.bbcrack?.length > 0) {
+                html += `<div class="section-header">XOR & Obfuscated Strings</div>`;
+
+                let hasXorContent = false;
+
+                if (xorRes.xorsearch_http?.length > 0) {
+                    hasXorContent = true;
+                    html += `<div class="card-subtitle" style="margin-top:10px; margin-bottom:5px; color:#ffcc00; font-size:0.8em">XORSearch (Found patterns)</div>`;
+                    html += '<div class="event-list">';
+                    xorRes.xorsearch_http.forEach(line => {
+                        html += `<div class="event-item"><span class="event-tag blue">XOR</span><span class="event-content">${escapeHtml(line)}</span></div>`;
+                    });
+                    html += '</div>';
+                }
+
+                if (xorRes.brxor?.length > 0) {
+                    hasXorContent = true;
+                    html += `<div class="card-subtitle" style="margin-top:10px; margin-bottom:5px; color:#ffcc00; font-size:0.8em">Brute-force XOR (brxor.py)</div>`;
+                    html += '<div class="event-list">';
+                    xorRes.brxor.forEach(line => {
+                        html += `<div class="event-item"><span class="event-tag yellow">BRXOR</span><span class="event-content">${escapeHtml(line)}</span></div>`;
+                    });
+                    html += '</div>';
+                }
+
+                if (xorRes.bbcrack?.length > 0) {
+                    hasXorContent = true;
+                    html += `<div class="card-subtitle" style="margin-top:10px; margin-bottom:5px; color:#ffcc00; font-size:0.8em">BBcrack Analysis</div>`;
+                    html += '<div class="event-list">';
+                    xorRes.bbcrack.forEach(line => {
+                        html += `<div class="event-item"><span class="event-tag purple">BBCRACK</span><span class="event-content">${escapeHtml(line)}</span></div>`;
+                    });
+                    html += '</div>';
+                }
+
+                if (xorRes.xorsearch_error) {
+                    html += `<div class="card-subtitle" style="margin-top:10px; margin-bottom:5px; color:#ff4444; font-size:0.8em">XORSearch Error</div>`;
+                    html += `<div class="hash-block"><span style="color:#ff4444">${escapeHtml(xorRes.xorsearch_error)}</span></div>`;
+                }
+
+                if (!hasXorContent && !xorRes.xorsearch_error) {
+                    html += `<div class="hash-block"><span style="color:#888">No obfuscated strings detected by XOR analysis tools.</span></div>`;
+                }
             }
 
             // Commands Executed

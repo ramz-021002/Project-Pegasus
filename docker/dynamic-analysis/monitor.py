@@ -398,6 +398,10 @@ class DynamicAnalyzer:
             '.rb': ['ruby'],
             '.php': ['php'],
             '.lua': ['lua'],
+            '.vbs': ['cscript', '//Nologo'],
+            '.ps1': ['powershell', '-ExecutionPolicy', 'Bypass', '-File'],
+            '.bat': ['cmd.exe', '/c'],
+            '.cmd': ['cmd.exe', '/c'],
         }
         
         for ext, interpreter in script_interpreters.items():

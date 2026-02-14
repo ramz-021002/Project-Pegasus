@@ -11,6 +11,7 @@ import hashlib
 import math
 from pathlib import Path
 from typing import Dict, List, Any
+import shutil
 
 try:
     import pefile
@@ -35,6 +36,7 @@ class StaticAnalyzer:
             "indicators": [],
             "entropy": 0.0,
             "file_type": "unknown",
+            "xor_analysis": {},
             "analysis_version": "1.0"
         }
 
@@ -58,7 +60,10 @@ class StaticAnalyzer:
 
             # Calculate entropy
             self.calculate_entropy()
-
+            
+            # Extract text snippet for scripts/text files
+            self.extract_text_snippet()
+            
             # PE analysis if applicable
             if self.is_pe_file():
                 self.analyze_pe()
@@ -71,6 +76,9 @@ class StaticAnalyzer:
 
             # CAPA capability analysis
             self.capa_analyze()
+            
+            # XOR analysis (xorsearch, brxor, bbcrack)
+            self.analyze_xor()
 
             return self.results
 
@@ -100,16 +108,40 @@ class StaticAnalyzer:
         try:
             mime = magic.Magic(mime=True)
             self.results["file_type"] = mime.from_file(str(self.sample_path))
+            
+            # Also get descriptive text for UI
+            desc = magic.Magic()
+            self.results["file_info"]["type_desc"] = desc.from_file(str(self.sample_path))
         except:
             self.results["file_type"] = "unknown"
+            self.results["file_info"]["type_desc"] = "Unknown binary data"
+
+    def extract_text_snippet(self, max_size: int = 4096):
+        """Extract a snippet of text from the file if it appears to be text-based."""
+        ft = self.results.get("file_type", "").lower()
+        is_text = any(t in ft for t in ["text/", "javascript", "json", "xml", "shellscript"])
+        
+        try:
+            with open(self.sample_path, "rb") as f:
+                header = f.read(max_size)
+                
+            # If magic didn't catch it but it looks like text (high printable ratio)
+            if not is_text:
+                printable = sum(1 for b in header if 32 <= b <= 126 or b in [9, 10, 13])
+                if len(header) > 0 and (printable / len(header)) > 0.8:
+                    is_text = True
+            
+            if is_text:
+                self.results["text_preview"] = header.decode('utf-8', errors='ignore')
+        except:
+            pass
 
     def is_pe_file(self) -> bool:
         """Check if file is a PE executable."""
-        return self.results["file_type"] in [
-            "application/x-dosexec",
-            "application/x-executable",
-            "application/x-msdownload"
-        ]
+        ft = self.results["file_type"].lower()
+        return any(t in ft for t in [
+            "x-dosexec", "x-executable", "msdownload", "application/x-msi"
+        ])
 
     def extract_strings(self, min_length: int = 4, max_strings: int = 1000):
         """Extract ASCII and Unicode strings from file."""
@@ -409,34 +441,37 @@ class StaticAnalyzer:
         
         try:
             # Run capa with JSON output and rules directory
+            # Try both the rules root and the rules subdirectory if it exists
             capa_rules_path = "/analysis/capa-rules"
+            capa_sigs_path = "/analysis/capa-signatures"
+            if os.path.isdir(os.path.join(capa_rules_path, "rules")):
+                capa_rules_path = os.path.join(capa_rules_path, "rules")
+                
             result = subprocess.run(
-                ["capa", "-r", capa_rules_path, "-j", str(self.sample_path)],
+                ["capa", "-r", capa_rules_path, "-s", capa_sigs_path, "-j", str(self.sample_path)],
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=180 # Increased timeout for larger files
             )
             
-            # Robust JSON extraction: CAPA might output banners or warnings before the JSON
             raw_output = result.stdout
             capa_output = None
             
             if raw_output:
-                # Find the last occurrence of { to the end, hoping it's the JSON block
-                # A more robust way is to find the first '{' and last '}'
                 try:
+                    # Find the first '{' and last '}' to extract the JSON object
                     start_idx = raw_output.find('{')
                     end_idx = raw_output.rfind('}')
                     if start_idx != -1 and end_idx != -1:
                         json_str = raw_output[start_idx:end_idx+1]
                         capa_output = json.loads(json_str)
                 except Exception as je:
-                    # Assuming a logger is available, otherwise print or store
-                    # print(f"WARNING: Failed to extract JSON from CAPA output: {je}")
-                    self.results["capa"]["error"] = f"Failed to parse CAPA output: {str(je)[:100]}"
+                    self.results["capa"]["error"] = f"JSON parse error: {str(je)[:100]}"
 
             if capa_output:
                 # Extract capabilities
+                # Note: Newer versions of CAPA might have a different JSON structure
+                # but we'll try to be compatible with common patterns.
                 rules = capa_output.get("rules", {})
                 capabilities = []
                 attack_techniques = []
@@ -456,11 +491,22 @@ class StaticAnalyzer:
                     attack = meta.get("attack", [])
                     for att in attack:
                         if isinstance(att, dict):
+                            attr_id = att.get("id", "")
+                            # Format: {id: "T1234", technique: "...", tactic: "..."}
                             attack_techniques.append({
                                 "technique": att.get("technique", ""),
-                                "id": att.get("id", ""),
+                                "id": attr_id,
                                 "tactic": att.get("tactic", "")
                             })
+                        elif isinstance(att, list):
+                            # Sometimes it's a list of [id, technique]
+                            for item in att:
+                                if isinstance(item, dict):
+                                    attack_techniques.append({
+                                        "technique": item.get("technique", ""),
+                                        "id": item.get("id", ""),
+                                        "tactic": item.get("tactic", "")
+                                    })
                     
                     # Extract MBC behaviors
                     mbc = meta.get("mbc", [])
@@ -472,28 +518,134 @@ class StaticAnalyzer:
                                 "objective": m.get("objective", "")
                             })
                 
-                self.results["capa"]["capabilities"] = capabilities[:100]  # Increase limit
+                self.results["capa"]["capabilities"] = capabilities[:100]
                 self.results["capa"]["attack"] = list({json.dumps(a): a for a in attack_techniques}.values())[:50]
                 self.results["capa"]["mbc"] = list({json.dumps(m): m for m in mbc_behaviors}.values())[:50]
                 
             elif result.stderr:
-                # CAPA may output errors for unsupported files
                 stderr_lower = result.stderr.lower()
-                if "unsupported architecture" in stderr_lower or "aarch64" in stderr_lower or "arm" in stderr_lower:
-                    self.results["capa"]["note"] = "CAPA only supports x86/x64 binaries (ARM64 not supported)"
-                elif "unsupported" in stderr_lower or "not a supported" in stderr_lower:
-                    self.results["capa"]["note"] = "File format not supported by CAPA (requires x86 PE/ELF)"
+                if "unsupported" in stderr_lower:
+                    self.results["capa"]["note"] = "CAPA: Unsupported file format or architecture"
                 else:
-                    self.results["capa"]["error"] = result.stderr[:200]
+                    self.results["capa"]["error"] = f"CAPA error: {result.stderr[:200]}"
             else:
                 self.results["capa"]["note"] = "No capabilities detected"
-                    
+                     
         except subprocess.TimeoutExpired:
-            self.results["capa"]["error"] = "Analysis timed out"
+            self.results["capa"]["error"] = "CAPA analysis timed out (3 min)"
         except FileNotFoundError:
-            self.results["capa"]["error"] = "CAPA not installed"
+            self.results["capa"]["error"] = "CAPA tool not found in container"
         except Exception as e:
-            self.results["capa"]["error"] = str(e)[:200]
+            self.results["capa"]["error"] = f"CAPA execution failed: {str(e)[:200]}"
+
+    def analyze_xor(self):
+        """Run XOR-related analysis tools (xorsearch, brxor, bbcrack)."""
+        import subprocess
+        
+        self.results["xor_analysis"] = {
+            "xorsearch_http": [],
+            "brxor": [],
+            "bbcrack": [],
+            "performed": True
+        }
+        
+        # 1. xorsearch for common patterns
+        # Patterns to search for in encoded state
+        patterns = ["http", "https", "This program", "KERNEL32", "CreateProcess", "ShellExecute"]
+        found_lines = set()
+        
+        try:
+            for pattern in patterns:
+                # ASCII search (-i for case insensitive)
+                # We don't use -p here as it's for PE-file detection only
+                result = subprocess.run(
+                    ["xorsearch", "-i", str(self.sample_path), pattern],
+                    capture_output=True,
+                    text=True,
+                    timeout=20
+                )
+                if result.stdout:
+                    for line in result.stdout.splitlines():
+                        l = line.strip()
+                        if l:
+                            found_lines.add(l)
+
+                # Unicode search (-u)
+                result_u = subprocess.run(
+                    ["xorsearch", "-i", "-u", str(self.sample_path), pattern],
+                    capture_output=True,
+                    text=True,
+                    timeout=20
+                )
+                if result_u.stdout:
+                    for line in result_u.stdout.splitlines():
+                        l = line.strip()
+                        if l:
+                            # Mark as Unicode for clarity in UI
+                            if not l.startswith("Unicode:"):
+                                l = f"Unicode: {l}"
+                            found_lines.add(l)
+            
+            # Also search for embedded PE files (correct use of -p)
+            result_pe = subprocess.run(
+                ["xorsearch", "-p", str(self.sample_path)],
+                capture_output=True,
+                text=True,
+                timeout=20
+            )
+            if result_pe.stdout:
+                for line in result_pe.stdout.splitlines():
+                    l = line.strip()
+                    if l and "found PE file" in l.lower():
+                        found_lines.add(f"Potential Embedded PE: {l}")
+            
+            self.results["xor_analysis"]["xorsearch_http"] = sorted(list(found_lines))[:50]
+        except Exception as e:
+            self.results["xor_analysis"]["xorsearch_error"] = str(e)
+
+        # 2. brxor.py (Didier Stevens)
+        # Try finding the script in common locations
+        brxor_cmd = None
+        for cmd in ["brxor.py", "/usr/local/bin/brxor.py", "/opt/didier-suite/brxor.py"]:
+            if shutil.which(cmd) or os.path.exists(cmd):
+                brxor_cmd = cmd
+                break
+        
+        if brxor_cmd:
+            try:
+                result = subprocess.run(
+                    [sys.executable, brxor_cmd, str(self.sample_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                if result.stdout:
+                    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+                    self.results["xor_analysis"]["brxor"] = lines[:20]
+            except Exception:
+                pass
+
+        # 3. bbcrack.py (Didier Stevens)
+        bbcrack_cmd = None
+        for cmd in ["bbcrack.py", "/usr/local/bin/bbcrack.py", "/opt/didier-suite/bbcrack.py"]:
+            if shutil.which(cmd) or os.path.exists(cmd):
+                bbcrack_cmd = cmd
+                break
+                
+        if bbcrack_cmd:
+            try:
+                result = subprocess.run(
+                    [sys.executable, bbcrack_cmd, str(self.sample_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                if result.stdout:
+                    # bbcrack output can be long, take first 30 lines
+                    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+                    self.results["xor_analysis"]["bbcrack"] = lines[:30]
+            except Exception:
+                pass
 
 
 def main():
