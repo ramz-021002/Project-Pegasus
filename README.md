@@ -7,7 +7,7 @@ Project Pegasus is a comprehensive malware analysis platform that performs autom
 ## Features
 
 - **🔒 Secure Isolation**: All analysis runs in unprivileged, network-isolated Docker containers with resource limits and capability dropping.
-- **� Robust Static Analysis**:
+- **🔐 Robust Static Analysis**:
     - PE Header & Import parsing
     - **Intelligent String Ranking**: Prioritizes interesting APIs, paths, IPs, and URLs.
     - **CAPA Integration**: Resilient capability detection for PE variants.
