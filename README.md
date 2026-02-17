@@ -24,6 +24,11 @@ Project Pegasus is a comprehensive malware analysis platform that performs autom
     - **One-Click Re-analysis**: Instantly trigger fresh analysis runs for any sample.
 - **💾 Unified Reporting**: Clean, real-time Web UI for monitoring progress and viewing results.
 
+## Demo
+https://github.com/user-attachments/assets/b9e3c0b8-5239-4241-93b2-3172e2b81c85
+
+
+
 ## Architecture
 
 ```mermaid
