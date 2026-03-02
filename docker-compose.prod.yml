@@ -1,0 +1,61 @@
+# docker-compose.prod.yml — production overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Required environment variables (set via GitHub Secrets → written to .env):
+#   SECRET_KEY          - random 64-char hex (openssl rand -hex 32)
+#   ENCRYPTION_KEY      - random base64 key  (openssl rand -base64 32)
+#   POSTGRES_PASSWORD   - strong database password
+#   DOMAIN              - your server's domain or IP, e.g. pegasus.example.com
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: always
+
+  redis:
+    # Do not expose Redis publicly in production
+    ports: []
+    restart: always
+
+  backend:
+    # Remove --reload in production
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    environment:
+      - DATABASE_URL=postgresql://pegasus:${POSTGRES_PASSWORD}@postgres:5432/pegasus_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ALLOWED_ORIGINS=["http://${DOMAIN}","https://${DOMAIN}"]
+      - UPLOAD_DIR=/app/quarantine
+      - HOST_QUARANTINE_PATH=${DEPLOY_PATH}/quarantine
+      - LOG_LEVEL=WARNING
+    # Do not expose backend port directly — nginx proxies it
+    ports: []
+    restart: always
+
+  celery-worker:
+    environment:
+      - DATABASE_URL=postgresql://pegasus:${POSTGRES_PASSWORD}@postgres:5432/pegasus_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - UPLOAD_DIR=/app/quarantine
+      - HOST_QUARANTINE_PATH=${DEPLOY_PATH}/quarantine
+      - LOG_LEVEL=WARNING
+    restart: always
+
+  frontend:
+    # Serve on standard HTTP port 80 instead of dev port 3000
+    ports:
+      - "0.0.0.0:80:80"
+    restart: always
+
+  network-gateway:
+    restart: always

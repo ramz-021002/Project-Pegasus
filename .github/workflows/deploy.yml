@@ -1,0 +1,42 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: SSH Deploy to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Writing production .env..."
+            cat > .env <<EOF
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            DOMAIN=${{ secrets.DOMAIN }}
+            EOF
+
+            echo "Rebuilding and restarting services..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull --ignore-pull-failures || true
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
+
+            echo "Cleaning up unused images..."
+            docker image prune -f
+
+            echo "Deployment complete."

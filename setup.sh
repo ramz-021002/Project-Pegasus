@@ -78,5 +78,18 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "  - Restart services: docker compose restart"
 fi
 
+# Register nightly midnight cleanup cron job
+echo ""
+echo "Registering nightly cleanup cron job (midnight)..."
+CLEANUP_SCRIPT="$(pwd)/cleanup.sh"
+CRON_ENTRY="0 0 * * * \"$CLEANUP_SCRIPT\" >> \"$(pwd)/cleanup.log\" 2>&1"
+# Add only if not already present
+if crontab -l 2>/dev/null | grep -qF "cleanup.sh"; then
+    echo "Cron job already registered, skipping."
+else
+    (crontab -l 2>/dev/null; echo "$CRON_ENTRY") | crontab -
+    echo "Cron job registered: runs every day at midnight."
+fi
+
 echo ""
 echo "Setup complete!"
