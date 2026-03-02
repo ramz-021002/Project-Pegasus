@@ -3,7 +3,7 @@
 
 set -e
 
-echo "🛡️ Building Project Pegasus Docker Images"
+echo "Building Project Pegasus Docker Images"
 echo "=========================================="
 
 # Change to project directory
@@ -11,21 +11,21 @@ cd "$(dirname "$0")"
 
 # Build static analysis image
 echo ""
-echo "📊 Building static analysis image..."
+echo "Building static analysis image..."
 docker build -t pegasus-static-analysis:latest docker/static-analysis/
 
 # Build dynamic analysis image
 echo ""
-echo "🔍 Building dynamic analysis image..."
+echo "Building dynamic analysis image..."
 docker build --no-cache -t pegasus-dynamic-analysis:latest docker/dynamic-analysis/
 
 # Build network gateway image
 echo ""
-echo "🌐 Building network gateway image..."
+echo "Building network gateway image..."
 docker build -t pegasus-network-gateway:latest docker/network-gateway/
 
 echo ""
-echo "✅ All Docker images built successfully!"
+echo "All Docker images built successfully!"
 echo ""
 echo "Images created:"
 docker images | grep pegasus

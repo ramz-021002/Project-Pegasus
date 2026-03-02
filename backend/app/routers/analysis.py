@@ -1,6 +1,7 @@
 """
 Analysis results router for retrieving completed analysis data.
 """
+
 import logging
 from typing import Dict, Optional
 import uuid
@@ -10,8 +11,15 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.database import (
-    get_db, DatabaseOperations, Sample, AnalysisType, AnalysisStatus, SampleStatus
+    get_db,
+    DatabaseOperations,
+    Sample,
+    AnalysisType,
+    AnalysisStatus,
+    SampleStatus,
 )
+from app.services.classification import classify_sample
+from app.services.classification import classify_sample
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +27,7 @@ router = APIRouter()
 
 
 @router.get("/{sample_id}")
-async def get_analysis_results(
-    sample_id: str,
-    db: Session = Depends(get_db)
-) -> Dict:
+async def get_analysis_results(sample_id: str, db: Session = Depends(get_db)) -> Dict:
     """
     Get complete analysis results for a sample.
 
@@ -38,15 +43,13 @@ async def get_analysis_results(
         sample_uuid = uuid.UUID(sample_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid sample ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid sample ID format"
         )
 
     sample = DatabaseOperations.get_sample_by_id(db, sample_uuid)
     if not sample:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sample not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found"
         )
 
     # Build response with all analysis data
@@ -60,7 +63,7 @@ async def get_analysis_results(
         "original_filename": sample.original_filename,
         "status": sample.status.value,
         "upload_timestamp": sample.upload_timestamp.isoformat(),
-        "analysis_results": {}
+        "analysis_results": {},
     }
 
     # Add each analysis type results. For types with multiple entries (e.g. repeated dynamic runs)
@@ -73,6 +76,7 @@ async def get_analysis_results(
     for analysis_key, results_list in results_by_type.items():
         # Prefer completed runs with results
         chosen = None
+
         # sort by started_at desc (None -> epoch)
         def started_key(r):
             return r.started_at or datetime.fromtimestamp(0)
@@ -89,9 +93,11 @@ async def get_analysis_results(
             "id": str(chosen.id),
             "status": chosen.status.value,
             "started_at": chosen.started_at.isoformat() if chosen.started_at else None,
-            "completed_at": chosen.completed_at.isoformat() if chosen.completed_at else None,
+            "completed_at": (
+                chosen.completed_at.isoformat() if chosen.completed_at else None
+            ),
             "results": chosen.results_json,
-            "error_message": chosen.error_message
+            "error_message": chosen.error_message,
         }
 
     # Add network indicators
@@ -102,7 +108,7 @@ async def get_analysis_results(
             "value": indicator.value,
             "confidence": indicator.confidence,
             "context": indicator.context,
-            "first_seen": indicator.first_seen.isoformat()
+            "first_seen": indicator.first_seen.isoformat(),
         }
         for indicator in indicators
     ]
@@ -111,21 +117,31 @@ async def get_analysis_results(
     results = {}
     for analysis_result in sample.analysis_results:
         if analysis_result.results_json:
-            results.update({
-                "network_logs": analysis_result.results_json.get("network_logs"),
-                "commands_executed": analysis_result.results_json.get("commands_executed"),
-                "files_accessed": analysis_result.results_json.get("files_accessed"),
-                "qemu_output": analysis_result.results_json.get("qemu_output"),
-            })
+            results.update(
+                {
+                    "network_logs": analysis_result.results_json.get("network_logs"),
+                    "commands_executed": analysis_result.results_json.get(
+                        "commands_executed"
+                    ),
+                    "files_accessed": analysis_result.results_json.get(
+                        "files_accessed"
+                    ),
+                    "qemu_output": analysis_result.results_json.get("qemu_output"),
+                }
+            )
+
+    # Add classification based on analysis results
+    try:
+        response["classification"] = classify_sample(response["analysis_results"])
+    except Exception as e:
+        logger.error(f"Classification failed for sample {sample_id}: {e}")
+        response["classification"] = "unknown"
 
     return response
 
 
 @router.get("/{sample_id}/static")
-async def get_static_analysis(
-    sample_id: str,
-    db: Session = Depends(get_db)
-) -> Dict:
+async def get_static_analysis(sample_id: str, db: Session = Depends(get_db)) -> Dict:
     """
     Get static analysis results only.
 
@@ -140,15 +156,13 @@ async def get_static_analysis(
         sample_uuid = uuid.UUID(sample_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid sample ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid sample ID format"
         )
 
     sample = DatabaseOperations.get_sample_by_id(db, sample_uuid)
     if not sample:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sample not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found"
         )
 
     # Find static analysis result
@@ -158,23 +172,24 @@ async def get_static_analysis(
                 "sample_id": str(sample.id),
                 "analysis_type": "static",
                 "status": result.status.value,
-                "started_at": result.started_at.isoformat() if result.started_at else None,
-                "completed_at": result.completed_at.isoformat() if result.completed_at else None,
+                "started_at": (
+                    result.started_at.isoformat() if result.started_at else None
+                ),
+                "completed_at": (
+                    result.completed_at.isoformat() if result.completed_at else None
+                ),
                 "results": result.results_json,
-                "error_message": result.error_message
+                "error_message": result.error_message,
             }
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail="Static analysis not found for this sample"
+        detail="Static analysis not found for this sample",
     )
 
 
 @router.get("/{sample_id}/dynamic")
-async def get_dynamic_analysis(
-    sample_id: str,
-    db: Session = Depends(get_db)
-) -> Dict:
+async def get_dynamic_analysis(sample_id: str, db: Session = Depends(get_db)) -> Dict:
     """
     Get dynamic analysis results only.
 
@@ -189,27 +204,31 @@ async def get_dynamic_analysis(
         sample_uuid = uuid.UUID(sample_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid sample ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid sample ID format"
         )
 
     sample = DatabaseOperations.get_sample_by_id(db, sample_uuid)
     if not sample:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sample not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found"
         )
 
     # Find dynamic analysis result(s) and pick the most relevant one
-    dyn_results = [r for r in sample.analysis_results if r.analysis_type == AnalysisType.DYNAMIC]
+    dyn_results = [
+        r for r in sample.analysis_results if r.analysis_type == AnalysisType.DYNAMIC
+    ]
     if not dyn_results:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dynamic analysis not found for this sample"
+            detail="Dynamic analysis not found for this sample",
         )
 
     # Sort by started_at desc
-    dyn_results_sorted = sorted(dyn_results, key=lambda r: r.started_at or datetime.fromtimestamp(0), reverse=True)
+    dyn_results_sorted = sorted(
+        dyn_results,
+        key=lambda r: r.started_at or datetime.fromtimestamp(0),
+        reverse=True,
+    )
     chosen = None
     for r in dyn_results_sorted:
         if r.results_json:
@@ -223,14 +242,16 @@ async def get_dynamic_analysis(
         "analysis_type": "dynamic",
         "status": chosen.status.value,
         "started_at": chosen.started_at.isoformat() if chosen.started_at else None,
-        "completed_at": chosen.completed_at.isoformat() if chosen.completed_at else None,
+        "completed_at": (
+            chosen.completed_at.isoformat() if chosen.completed_at else None
+        ),
         "results": chosen.results_json,
-        "error_message": chosen.error_message
+        "error_message": chosen.error_message,
     }
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail="Dynamic analysis not found for this sample"
+        detail="Dynamic analysis not found for this sample",
     )
 
 
@@ -238,7 +259,7 @@ async def get_dynamic_analysis(
 async def get_network_indicators(
     sample_id: str,
     indicator_type: Optional[str] = Query(None, description="Filter by indicator type"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> Dict:
     """
     Get network indicators extracted from analysis.
@@ -255,22 +276,22 @@ async def get_network_indicators(
         sample_uuid = uuid.UUID(sample_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid sample ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid sample ID format"
         )
 
     sample = DatabaseOperations.get_sample_by_id(db, sample_uuid)
     if not sample:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sample not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found"
         )
 
     indicators = DatabaseOperations.get_indicators_for_sample(db, sample_uuid)
 
     # Filter by type if specified
     if indicator_type:
-        indicators = [i for i in indicators if i.indicator_type.value == indicator_type.lower()]
+        indicators = [
+            i for i in indicators if i.indicator_type.value == indicator_type.lower()
+        ]
 
     return {
         "sample_id": str(sample.id),
@@ -282,18 +303,15 @@ async def get_network_indicators(
                 "value": indicator.value,
                 "confidence": indicator.confidence,
                 "context": indicator.context,
-                "first_seen": indicator.first_seen.isoformat()
+                "first_seen": indicator.first_seen.isoformat(),
             }
             for indicator in indicators
-        ]
+        ],
     }
 
 
 @router.post("/{sample_id}/reanalyze")
-async def reanalyze_sample(
-    sample_id: str,
-    db: Session = Depends(get_db)
-) -> Dict:
+async def reanalyze_sample(sample_id: str, db: Session = Depends(get_db)) -> Dict:
     """
     Trigger re-analysis of an existing sample and overwrite previous results.
 
@@ -308,15 +326,13 @@ async def reanalyze_sample(
         sample_uuid = uuid.UUID(sample_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid sample ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid sample ID format"
         )
 
     sample = DatabaseOperations.get_sample_by_id(db, sample_uuid)
     if not sample:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sample not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found"
         )
 
     # Mark existing analysis results as ready-to-run and clear results_json
@@ -329,14 +345,14 @@ async def reanalyze_sample(
 
     # Trigger Celery task for analysis
     from app.tasks.orchestration import analyze_sample
+
     analyze_sample.delay(str(sample.id))
 
     return {
         "message": "Re-analysis started",
         "sample_id": str(sample.id),
-        "status": sample.status.value
+        "status": sample.status.value,
     }
-    
 
 
 @router.get("/")
@@ -345,7 +361,7 @@ async def search_samples(
     status_filter: Optional[str] = Query(None, description="Filter by status"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> Dict:
     """
     Search and filter analysis results.
@@ -368,17 +384,19 @@ async def search_samples(
 
         return {
             "total": 1,
-            "samples": [{
-                "sample_id": str(sample.id),
-                "sha256": sample.sha256,
-                "md5": sample.md5,
-                "file_size": sample.file_size,
-                "file_type": sample.file_type,
-                "original_filename": sample.original_filename,
-                "status": sample.status.value,
-                "upload_timestamp": sample.upload_timestamp.isoformat(),
-                "analysis_count": len(sample.analysis_results)
-            }]
+            "samples": [
+                {
+                    "sample_id": str(sample.id),
+                    "sha256": sample.sha256,
+                    "md5": sample.md5,
+                    "file_size": sample.file_size,
+                    "file_type": sample.file_type,
+                    "original_filename": sample.original_filename,
+                    "status": sample.status.value,
+                    "upload_timestamp": sample.upload_timestamp.isoformat(),
+                    "analysis_count": len(sample.analysis_results),
+                }
+            ],
         }
 
     # Get all samples with optional status filter
@@ -401,8 +419,8 @@ async def search_samples(
                 "original_filename": sample.original_filename,
                 "status": sample.status.value,
                 "upload_timestamp": sample.upload_timestamp.isoformat(),
-                "analysis_count": len(sample.analysis_results)
+                "analysis_count": len(sample.analysis_results),
             }
             for sample in samples
-        ]
+        ],
     }

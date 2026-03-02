@@ -139,4 +139,4 @@ docker compose logs -f backend
 3. **VM Deployment**: It is strongly recommended to run Project Pegasus inside a dedicated, isolated Virtual Machine.
 
 ---
-**Happy Hunting! 🛡️**
+**Happy Hunting!**

@@ -2,6 +2,7 @@
 Configuration management using pydantic-settings.
 Loads settings from environment variables and .env file.
 """
+
 from functools import lru_cache
 from pathlib import Path
 from typing import List
@@ -16,149 +17,190 @@ class Settings(BaseSettings):
     # Database Configuration
     database_url: str = Field(
         default="postgresql://pegasus:password@localhost:5432/pegasus_db",
-        description="PostgreSQL connection string"
+        description="PostgreSQL connection string",
     )
 
     # Redis Configuration
     redis_url: str = Field(
-        default="redis://localhost:6379/0",
-        description="Redis connection string"
+        default="redis://localhost:6379/0", description="Redis connection string"
     )
 
     # Application Settings
     secret_key: str = Field(
-        default="changeme",
-        description="Secret key for session management"
+        default="changeme", description="Secret key for session management"
     )
     debug: bool = Field(default=False, description="Enable debug mode")
     allowed_origins: List[str] = Field(
-        default=["http://localhost:3000"],
-        description="CORS allowed origins"
+        default=["http://localhost:3000"], description="CORS allowed origins"
     )
 
     # File Upload Settings
     upload_dir: Path = Field(
         default=Path("/tmp/pegasus/quarantine"),
-        description="Directory for quarantine storage"
+        description="Directory for quarantine storage",
     )
     host_quarantine_path: str = Field(
-        default="",
-        description="Host path for quarantine volume (for Docker mounts)"
+        default="", description="Host path for quarantine volume (for Docker mounts)"
     )
     max_upload_size: int = Field(
-        default=104857600,  # 100MB
-        description="Maximum file upload size in bytes"
+        default=104857600, description="Maximum file upload size in bytes"  # 100MB
     )
     allowed_file_extensions: List[str] = Field(
         default=[
             # Executables
-            ".exe", ".dll", ".sys", ".drv", ".scr", ".cpl", ".ocx", ".msi", ".com",
+            ".exe",
+            ".dll",
+            ".sys",
+            ".drv",
+            ".scr",
+            ".cpl",
+            ".ocx",
+            ".msi",
+            ".com",
             # Linux/Unix
-            ".elf", ".so", ".ko", ".sh", ".run", ".out", ".bin",
+            ".elf",
+            ".so",
+            ".ko",
+            ".sh",
+            ".run",
+            ".out",
+            ".bin",
             # macOS
-            ".app", ".dmg", ".pkg", ".dylib", ".bundle",
+            ".app",
+            ".dmg",
+            ".pkg",
+            ".dylib",
+            ".bundle",
             # Scripts
-            ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
-            ".py", ".pyc", ".pyw", ".rb", ".pl", ".php", ".lua",
+            ".bat",
+            ".cmd",
+            ".ps1",
+            ".vbs",
+            ".vbe",
+            ".js",
+            ".jse",
+            ".wsf",
+            ".wsh",
+            ".py",
+            ".pyc",
+            ".pyw",
+            ".rb",
+            ".pl",
+            ".php",
+            ".lua",
             # Java/Android
-            ".jar", ".class", ".apk", ".dex",
+            ".jar",
+            ".class",
+            ".apk",
+            ".dex",
             # Documents (may contain macros/exploits)
-            ".pdf", ".doc", ".docx", ".docm", ".xls", ".xlsx", ".xlsm",
-            ".ppt", ".pptx", ".pptm", ".rtf", ".odt", ".ods", ".odp",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".docm",
+            ".xls",
+            ".xlsx",
+            ".xlsm",
+            ".ppt",
+            ".pptx",
+            ".pptm",
+            ".rtf",
+            ".odt",
+            ".ods",
+            ".odp",
             # Archives
-            ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".cab", ".iso",
+            ".zip",
+            ".rar",
+            ".7z",
+            ".tar",
+            ".gz",
+            ".bz2",
+            ".xz",
+            ".cab",
+            ".iso",
             # Web
-            ".html", ".htm", ".hta", ".svg", ".swf",
+            ".html",
+            ".htm",
+            ".hta",
+            ".svg",
+            ".swf",
             # Other
-            ".lnk", ".url", ".inf", ".reg", ".chm",
+            ".lnk",
+            ".url",
+            ".inf",
+            ".reg",
+            ".chm",
             # Generic binary
-            ""
+            "",
         ],
-        description="Allowed file extensions (empty string allows extensionless files)"
+        description="Allowed file extensions (empty string allows extensionless files)",
     )
 
     # Docker Configuration
     docker_socket: str = Field(
-        default="unix:///var/run/docker.sock",
-        description="Docker socket path"
+        default="unix:///var/run/docker.sock", description="Docker socket path"
     )
     analysis_timeout: int = Field(
-        default=300,
-        description="Container analysis timeout in seconds"
+        default=300, description="Container analysis timeout in seconds"
     )
     docker_network_prefix: str = Field(
-        default="pegasus_analysis",
-        description="Prefix for Docker network names"
+        default="pegasus_analysis", description="Prefix for Docker network names"
     )
 
     # Security
     encryption_key: str = Field(
         default="changeme",
-        description="Encryption key for file storage (32 bytes base64)"
+        description="Encryption key for file storage (32 bytes base64)",
     )
     file_permissions: str = Field(
-        default="0400",
-        description="File permissions for quarantined samples"
+        default="0400", description="File permissions for quarantined samples"
     )
 
     # Celery Configuration
     celery_broker_url: str = Field(
-        default="redis://localhost:6379/0",
-        description="Celery broker URL"
+        default="redis://localhost:6379/0", description="Celery broker URL"
     )
     celery_result_backend: str = Field(
-        default="redis://localhost:6379/0",
-        description="Celery result backend URL"
+        default="redis://localhost:6379/0", description="Celery result backend URL"
     )
     celery_task_track_started: bool = Field(
-        default=True,
-        description="Track task start events"
+        default=True, description="Track task start events"
     )
     celery_task_time_limit: int = Field(
-        default=600,
-        description="Hard time limit for tasks in seconds"
+        default=600, description="Hard time limit for tasks in seconds"
     )
 
     # Analysis Settings
     static_analysis_image: str = Field(
         default="pegasus-static-analysis:latest",
-        description="Docker image for static analysis"
+        description="Docker image for static analysis",
     )
     dynamic_analysis_image: str = Field(
         default="pegasus-dynamic-analysis:latest",
-        description="Docker image for dynamic analysis"
+        description="Docker image for dynamic analysis",
     )
     network_gateway_image: str = Field(
         default="pegasus-network-gateway:latest",
-        description="Docker image for network gateway"
+        description="Docker image for network gateway",
     )
     dynamic_execution_timeout: int = Field(
-        default=30,
-        description="Timeout for malware execution in seconds"
+        default=30, description="Timeout for malware execution in seconds"
     )
 
     # Logging
     log_level: str = Field(default="INFO", description="Logging level")
     log_file: Path = Field(
-        default=Path("/var/log/pegasus/app.log"),
-        description="Log file path"
+        default=Path("/var/log/pegasus/app.log"), description="Log file path"
     )
 
     # Rate Limiting
-    rate_limit_uploads: int = Field(
-        default=5,
-        description="Maximum uploads per window"
-    )
+    rate_limit_uploads: int = Field(default=5, description="Maximum uploads per window")
     rate_limit_window: int = Field(
-        default=3600,
-        description="Rate limit window in seconds"
+        default=3600, description="Rate limit window in seconds"
     )
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
 
     @field_validator("allowed_origins", mode="before")

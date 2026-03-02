@@ -212,6 +212,10 @@
             color: #33ff33;
         }
 
+        .result-classification.unknown {
+            color: #888888;
+        }
+
         .result-meta {
             color: #888;
             font-size: 0.8em;
@@ -617,6 +621,18 @@
             statusArea.innerHTML = `<div class="status-line ${type}">[${type === 'success' ? '+' : type === 'error' ? '!' : '*'}] ${escapeHtml(message)}</div>`;
         }
 
+        function toggleDebugRaw() {
+            const rawData = document.getElementById('raw-debug-data');
+            const toggle = document.getElementById('debug-toggle');
+            if (rawData.style.display === 'none') {
+                rawData.style.display = 'block';
+                toggle.innerHTML = '▼ Hide';
+            } else {
+                rawData.style.display = 'none';
+                toggle.innerHTML = '▶ Show';
+            }
+        }
+
         async function analyzeFile() {
             if (!selectedFile) {
                 setStatus('Please select a file first', 'error');
@@ -884,48 +900,55 @@
 
             // XOR Analysis Results
             const xorRes = staticRes.xor_analysis || {};
-            if (xorRes.performed || xorRes.xorsearch_http?.length > 0 || xorRes.brxor?.length > 0 || xorRes.bbcrack?.length > 0) {
+            
+            // Support both old and new field names for backward compatibility
+            const decodedStrings = xorRes.decoded_strings || xorRes.xorsearch_strings || [];
+            const plaintextUrls = xorRes.plaintext_urls || [];
+            
+            if (xorRes.performed || decodedStrings.length > 0 || plaintextUrls.length > 0) {
                 html += `<div class="section-header">XOR & Obfuscated Strings</div>`;
+
+                // Show summary if available
+                if (xorRes.summary) {
+                    html += `<div class="hash-block"><span style="color:#00ff88; font-weight:bold">📊 ${escapeHtml(xorRes.summary)}</span></div>`;
+                }
 
                 let hasXorContent = false;
 
-                if (xorRes.xorsearch_http?.length > 0) {
+                // XOR/ROL/SHIFT decoded strings (supports both old and new field names)
+                if (decodedStrings.length > 0) {
                     hasXorContent = true;
-                    html += `<div class="card-subtitle" style="margin-top:10px; margin-bottom:5px; color:#ffcc00; font-size:0.8em">XORSearch (Found patterns)</div>`;
+                    html += `<div class="card-subtitle" style="margin-top:10px; margin-bottom:5px; color:#ffcc00; font-size:0.8em">🔓 XOR/ROL/SHIFT Decoded Strings (${decodedStrings.length})</div>`;
                     html += '<div class="event-list">';
-                    xorRes.xorsearch_http.forEach(line => {
+                    decodedStrings.forEach(line => {
                         html += `<div class="event-item"><span class="event-tag blue">XOR</span><span class="event-content">${escapeHtml(line)}</span></div>`;
                     });
                     html += '</div>';
                 }
 
-                if (xorRes.brxor?.length > 0) {
+                // Plain-text URLs found (for context)
+                if (plaintextUrls.length > 0) {
                     hasXorContent = true;
-                    html += `<div class="card-subtitle" style="margin-top:10px; margin-bottom:5px; color:#ffcc00; font-size:0.8em">Brute-force XOR (brxor.py)</div>`;
+                    html += `<div class="card-subtitle" style="margin-top:10px; margin-bottom:5px; color:#88ccff; font-size:0.8em">📝 Plain-text URLs (${plaintextUrls.length})</div>`;
                     html += '<div class="event-list">';
-                    xorRes.brxor.forEach(line => {
-                        html += `<div class="event-item"><span class="event-tag yellow">BRXOR</span><span class="event-content">${escapeHtml(line)}</span></div>`;
+                    plaintextUrls.forEach(url => {
+                        html += `<div class="event-item"><span class="event-tag green">URL</span><span class="event-content">${escapeHtml(url)}</span></div>`;
                     });
                     html += '</div>';
                 }
 
-                if (xorRes.bbcrack?.length > 0) {
-                    hasXorContent = true;
-                    html += `<div class="card-subtitle" style="margin-top:10px; margin-bottom:5px; color:#ffcc00; font-size:0.8em">BBcrack Analysis</div>`;
-                    html += '<div class="event-list">';
-                    xorRes.bbcrack.forEach(line => {
-                        html += `<div class="event-item"><span class="event-tag purple">BBCRACK</span><span class="event-content">${escapeHtml(line)}</span></div>`;
-                    });
-                    html += '</div>';
+                // Show errors or warnings
+                if (xorRes.error || xorRes.xorsearch_error) {
+                    html += `<div class="card-subtitle" style="margin-top:10px; margin-bottom:5px; color:#ff4444; font-size:0.8em">⚠️ Error</div>`;
+                    html += `<div class="hash-block"><span style="color:#ff4444">${escapeHtml(xorRes.error || xorRes.xorsearch_error)}</span></div>`;
                 }
 
-                if (xorRes.xorsearch_error) {
-                    html += `<div class="card-subtitle" style="margin-top:10px; margin-bottom:5px; color:#ff4444; font-size:0.8em">XORSearch Error</div>`;
-                    html += `<div class="hash-block"><span style="color:#ff4444">${escapeHtml(xorRes.xorsearch_error)}</span></div>`;
+                if (xorRes.warning) {
+                    html += `<div class="hash-block"><span style="color:#ffaa00">⚠️ ${escapeHtml(xorRes.warning)}</span></div>`;
                 }
 
-                if (!hasXorContent && !xorRes.xorsearch_error) {
-                    html += `<div class="hash-block"><span style="color:#888">No obfuscated strings detected by XOR analysis tools.</span></div>`;
+                if (!hasXorContent && !xorRes.error && !xorRes.xorsearch_error && !xorRes.warning) {
+                    html += `<div class="hash-block"><span style="color:#888">✓ No obfuscated strings detected. URLs (if any) are in plain-text.</span></div>`;
                 }
             }
 
@@ -1010,23 +1033,94 @@
             if (dynamicRes.debug) {
                 try {
                     const dbg = dynamicRes.debug || {};
-                    const dbgText = JSON.stringify(dbg, null, 2);
 
-                    // Show a compact QEMU/execution summary first
-                    const execMethod = dynamicRes.execution_method || '';
-                    const qemuChosen = dbg.qemu_chosen || dbg.qemu_chosen === '' ? dbg.qemu_chosen : '';
-                    const upxUnpacked = (dbg.upx_unpacked === true) ? 'yes' : (dbg.upx_unpacked === false ? 'no' : 'unknown');
-
-                    html += `<div class="section-header">Execution / QEMU</div>`;
-                    html += `<div class="data-row"><div class="data-label">Method</div><div class="data-value">${escapeHtml(execMethod)}</div></div>`;
-                    if (qemuChosen) {
-                        html += `<div class="data-row"><div class="data-label">QEMU</div><div class="data-value">${escapeHtml(qemuChosen)}</div></div>`;
+                    // File Analysis Section
+                    html += `<div class="section-header">📁 File Analysis</div>`;
+                    if (dbg.file_desc) {
+                        html += `<div class="data-row"><div class="data-label">File Type</div><div class="data-value">${escapeHtml(dbg.file_desc)}</div></div>`;
                     }
-                    html += `<div class="data-row"><div class="data-label">UPX unpacked</div><div class="data-value">${escapeHtml(upxUnpacked)}</div></div>`;
+                    html += `<div class="data-row"><div class="data-label">Windows PE</div><div class="data-value">${dbg.is_windows ? '✓ Yes' : '✗ No'}</div></div>`;
+                    html += `<div class="data-row"><div class="data-label">Script File</div><div class="data-value">${dbg.is_script ? '✓ Yes' : '✗ No'}</div></div>`;
 
-                    // Full debug blob
-                    html += `<div class="section-header">Debug Info</div>`;
-                    html += `<div class="event-list"><div class="event-item"><pre style="white-space:pre-wrap;max-height:200px;overflow:auto;color:#999">${escapeHtml(dbgText)}</pre></div></div>`;
+                    // UPX Packing Analysis
+                    html += `<div class="section-header">📦 UPX Analysis</div>`;
+                    html += `<div class="data-row"><div class="data-label">UPX Available</div><div class="data-value">${dbg.upx_available ? '✓ Yes' : '✗ No'}</div></div>`;
+                    if (dbg.upx_available) {
+                        const upxStatus = dbg.upx_unpacked ? '✓ Unpacked' : 
+                                        dbg.upx_returncode === 2 ? '⚠ Not packed by UPX' :
+                                        dbg.upx_returncode === 0 ? '✓ Successfully unpacked' : '✗ Failed';
+                        html += `<div class="data-row"><div class="data-label">Status</div><div class="data-value">${upxStatus}</div></div>`;
+                        if (dbg.upx_backup) {
+                            html += `<div class="data-row"><div class="data-label">Backup Path</div><div class="data-value">${escapeHtml(dbg.upx_backup)}</div></div>`;
+                        }
+                        if (dbg.upx_stderr && dbg.upx_stderr.trim()) {
+                            const upxError = dbg.upx_stderr.trim().replace('upx: ', '').split('\n')[0];
+                            html += `<div class="data-row"><div class="data-label">Details</div><div class="data-value">${escapeHtml(upxError)}</div></div>`;
+                        }
+                    }
+
+                    // Execution Method
+                    const execMethod = dynamicRes.execution_method || '';
+                    html += `<div class="section-header">⚙️ Execution Method</div>`;
+                    html += `<div class="data-row"><div class="data-label">Method</div><div class="data-value">${escapeHtml(execMethod)}</div></div>`;
+                    
+                    if (dbg.pre_qemu_cmd && dbg.pre_qemu_cmd.length > 0) {
+                        html += `<div class="data-row"><div class="data-label">Command</div><div class="data-value"><code>${escapeHtml(dbg.pre_qemu_cmd.join(' '))}</code></div></div>`;
+                    }
+
+                    // QEMU Emulation Attempts
+                    if (dbg.qemu_attempts && dbg.qemu_attempts.length > 0) {
+                        html += `<div class="section-header">🖥️ QEMU Emulation Attempts</div>`;
+                        dbg.qemu_attempts.forEach((attempt, idx) => {
+                            const hasActivity = attempt.syscalls_sample && attempt.syscalls_sample.length > 0;
+                            const status = attempt.error ? `❌ ${attempt.error}` : 
+                                         hasActivity ? `✓ Success (${attempt.syscalls_sample.length} syscalls)` : 
+                                         '⚠ No activity detected';
+                            html += `<div class="data-row">
+                                <div class="data-label">${escapeHtml(attempt.candidate)}</div>
+                                <div class="data-value">${status}</div>
+                            </div>`;
+                            if (hasActivity && attempt.syscalls_sample.length > 0) {
+                                html += `<div class="data-row">
+                                    <div class="data-label">Sample syscalls</div>
+                                    <div class="data-value"><code>${escapeHtml(attempt.syscalls_sample.slice(0, 3).join(', '))}${attempt.syscalls_sample.length > 3 ? '...' : ''}</code></div>
+                                </div>`;
+                            }
+                        });
+                    }
+
+                    // Other debug info
+                    const otherDebugKeys = Object.keys(dbg).filter(key => 
+                        !['file_desc', 'is_windows', 'is_script', 'upx_available', 'upx_unpacked', 
+                          'upx_backup', 'upx_stderr', 'upx_stdout', 'upx_returncode', 'pre_qemu_cmd', 
+                          'qemu_attempts', 'qemu_chosen'].includes(key)
+                    );
+                    
+                    if (otherDebugKeys.length > 0) {
+                        html += `<div class="section-header">🔧 Additional Debug Info</div>`;
+                        otherDebugKeys.forEach(key => {
+                            const value = typeof dbg[key] === 'object' ? JSON.stringify(dbg[key], null, 2) : String(dbg[key]);
+                            html += `<div class="data-row">
+                                <div class="data-label">${escapeHtml(key)}</div>
+                                <div class="data-value">${key.includes('error') || key.includes('stderr') ? 
+                                    `<span style="color:#ff6b6b">${escapeHtml(value)}</span>` : 
+                                    escapeHtml(value)}</div>
+                            </div>`;
+                        });
+                    }
+
+                    // Expandable raw debug data
+                    html += `<div class="section-header" style="cursor:pointer;user-select:none;" onclick="toggleDebugRaw()">
+                        📄 Raw Debug Data <span id="debug-toggle" style="float:right;font-size:0.8em">▶ Show</span>
+                    </div>`;
+                    html += `<div id="raw-debug-data" style="display:none;">
+                        <div class="event-list">
+                            <div class="event-item">
+                                <pre style="white-space:pre-wrap;max-height:300px;overflow:auto;color:#999;font-size:0.85em">${escapeHtml(JSON.stringify(dbg, null, 2))}</pre>
+                            </div>
+                        </div>
+                    </div>`;
+
                 } catch (e) {
                     // Fallback: show as string
                     html += `<div class="section-header">Debug Info</div>`;

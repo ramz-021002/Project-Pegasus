@@ -2,6 +2,7 @@
 WebSocket router for real-time analysis updates.
 Broadcasts analysis progress to connected clients.
 """
+
 import logging
 from typing import Dict, Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
@@ -87,9 +88,7 @@ manager = ConnectionManager()
 
 @router.websocket("/status/{sample_id}")
 async def websocket_status(
-    websocket: WebSocket,
-    sample_id: str,
-    db: Session = Depends(get_db)
+    websocket: WebSocket, sample_id: str, db: Session = Depends(get_db)
 ):
     """
     WebSocket endpoint for real-time sample analysis status.
@@ -121,7 +120,7 @@ async def websocket_status(
             "type": "initial_status",
             "sample_id": str(sample.id),
             "status": sample.status.value,
-            "upload_timestamp": sample.upload_timestamp.isoformat()
+            "upload_timestamp": sample.upload_timestamp.isoformat(),
         }
         await websocket.send_json(initial_status)
 
@@ -138,7 +137,7 @@ async def websocket_status(
                         status_update = {
                             "type": "status_update",
                             "sample_id": str(sample.id),
-                            "status": sample.status.value
+                            "status": sample.status.value,
                         }
 
                         # Include analysis results if available
@@ -146,7 +145,7 @@ async def websocket_status(
                             status_update["analysis_results"] = [
                                 {
                                     "type": result.analysis_type.value,
-                                    "status": result.status.value
+                                    "status": result.status.value,
                                 }
                                 for result in sample.analysis_results
                             ]
@@ -156,12 +155,12 @@ async def websocket_status(
             except asyncio.TimeoutError:
                 # Periodic status check
                 sample = DatabaseOperations.get_sample_by_id(db, sample_uuid)
-                if sample and sample.status.value in ['completed', 'failed']:
+                if sample and sample.status.value in ["completed", "failed"]:
                     # Send final status and close
                     final_status = {
                         "type": "final_status",
                         "sample_id": str(sample.id),
-                        "status": sample.status.value
+                        "status": sample.status.value,
                     }
                     await websocket.send_json(final_status)
                     break
@@ -186,11 +185,7 @@ async def notify_status_change(sample_id: str, status: str, progress: int = None
         status: New status
         progress: Optional progress percentage (0-100)
     """
-    message = {
-        "type": "status_update",
-        "sample_id": sample_id,
-        "status": status
-    }
+    message = {"type": "status_update", "sample_id": sample_id, "status": status}
 
     if progress is not None:
         message["progress"] = progress

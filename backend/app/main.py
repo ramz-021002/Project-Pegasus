@@ -2,6 +2,7 @@
 Main FastAPI application for Project Pegasus.
 Secure malware analysis platform.
 """
+
 import logging
 from contextlib import asynccontextmanager
 from typing import Dict
@@ -16,7 +17,7 @@ from app.database import init_db
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json"
+    openapi_url="/api/openapi.json",
 )
 
 # Configure CORS
@@ -85,11 +86,7 @@ async def health_check() -> Dict[str, str]:
     Health check endpoint.
     Returns basic status information.
     """
-    return {
-        "status": "healthy",
-        "service": "Project Pegasus",
-        "version": "0.1.0"
-    }
+    return {"status": "healthy", "service": "Project Pegasus", "version": "0.1.0"}
 
 
 @app.get("/", tags=["Root"])
@@ -101,7 +98,7 @@ async def root() -> Dict[str, str]:
         "service": "Project Pegasus - Malware Analysis Platform",
         "version": "0.1.0",
         "docs": "/api/docs",
-        "health": "/health"
+        "health": "/health",
     }
 
 
@@ -112,10 +109,7 @@ async def global_exception_handler(request, exc):
     Global exception handler for unhandled exceptions.
     """
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error"}
-    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 # Import and include routers
@@ -134,5 +128,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.debug,
-        log_level=settings.log_level.lower()
+        log_level=settings.log_level.lower(),
     )

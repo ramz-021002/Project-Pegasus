@@ -9,7 +9,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     tcpdump \
     dnsmasq \
     iptables \
+    iproute2 \
     net-tools \
+    iputils-ping \
+    curl \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy configuration files

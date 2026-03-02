@@ -2,6 +2,7 @@
 Docker container management service.
 Handles creation, execution, and cleanup of isolated analysis containers.
 """
+
 import logging
 import docker
 import uuid
@@ -48,7 +49,7 @@ class DockerManager:
                 network_name,
                 driver="bridge",
                 internal=True,  # No external network access
-                check_duplicate=True
+                check_duplicate=True,
             )
             logger.info(f"Created isolated network: {network_name}")
             return network.id
@@ -71,9 +72,7 @@ class DockerManager:
             logger.warning(f"Failed to remove network {network_id}: {e}")
 
     def run_static_analysis(
-        self,
-        sample_path: Path,
-        timeout: int = 300
+        self, sample_path: Path, timeout: int = 300
     ) -> Tuple[bool, Dict, str]:
         """
         Run static analysis container.
@@ -91,18 +90,18 @@ class DockerManager:
             # Verify source file exists
             if not sample_path.exists():
                 return False, {"error": f"Sample file not found: {sample_path}"}, "none"
-            
+
             # Create a workspace directory inside quarantine for sample
-            analysis_temp_dir = settings.upload_dir / '_analysis_temp'
+            analysis_temp_dir = settings.upload_dir / "_analysis_temp"
             analysis_temp_dir.mkdir(parents=True, exist_ok=True)
             os.chmod(analysis_temp_dir, 0o755)
-            
-            work_dir = tempfile.mkdtemp(prefix='static_', dir=str(analysis_temp_dir))
+
+            work_dir = tempfile.mkdtemp(prefix="static_", dir=str(analysis_temp_dir))
             os.chmod(work_dir, 0o755)  # Allow non-root user in container to access
-            sample_dest = Path(work_dir) / 'sample.bin'
+            sample_dest = Path(work_dir) / "sample.bin"
             shutil.copy2(sample_path, sample_dest)
             os.chmod(sample_dest, 0o644)  # World-readable
-            
+
             # Calculate host path for Docker mount
             # Container path: /app/quarantine/_analysis_temp/static_XXX
             # Host path: {HOST_QUARANTINE_PATH}/_analysis_temp/static_XXX
@@ -112,27 +111,29 @@ class DockerManager:
             else:
                 # Fallback: assume the container path matches host path
                 host_work_dir = work_dir
-            
+
             logger.info(f"Work dir: container={work_dir}, host={host_work_dir}")
-            
+
             # Container configuration
             container_config = {
-                'image': settings.static_analysis_image,
-                'detach': True,
-                'network_mode': 'none',  # No network access for static analysis
-                'mem_limit': '2g',
-                'cpu_quota': 100000,  # 1 CPU core
-                'read_only': False,  # Need write access to workspace
-                'security_opt': ['no-new-privileges:true'],
-                'cap_drop': ['ALL'],
-                'tmpfs': {'/tmp': 'size=100M,mode=1777'},
-                'volumes': {
-                    host_work_dir: {'bind': '/analysis/workspace', 'mode': 'rw'}
+                "image": settings.static_analysis_image,
+                "detach": True,
+                "network_mode": "none",  # No network access for static analysis
+                "mem_limit": "2g",
+                "cpu_quota": 100000,  # 1 CPU core
+                "read_only": False,  # Need write access to workspace
+                "security_opt": ["no-new-privileges:true"],
+                "cap_drop": ["ALL"],
+                "tmpfs": {"/tmp": "size=100M,mode=1777"},
+                "volumes": {
+                    host_work_dir: {"bind": "/analysis/workspace", "mode": "rw"}
                 },
-                'environment': {
-                    'ANALYSIS_TIMEOUT': str(timeout)
-                },
-                'command': ['python3', '/analysis/analyze.py', '/analysis/workspace/sample.bin']
+                "environment": {"ANALYSIS_TIMEOUT": str(timeout)},
+                "command": [
+                    "python3",
+                    "/analysis/analyze.py",
+                    "/analysis/workspace/sample.bin",
+                ],
             }
 
             # Run container
@@ -145,16 +146,17 @@ class DockerManager:
 
             # Get logs (contains JSON results). Logs may include diagnostic
             # lines before/after the JSON (e.g. tcpdump or INetSim messages).
-            logs = container.logs().decode('utf-8')
+            logs = container.logs().decode("utf-8")
 
             # Parse results robustly: try to parse whole output first, then
             # search for a JSON object substring (try from last '{' backwards)
             import json, re
+
             results = None
             logger.info(f"Container raw logs: {logs}")
             try:
                 results = json.loads(logs)
-                success = result['StatusCode'] == 0
+                success = result["StatusCode"] == 0
             except json.JSONDecodeError:
                 # Try to locate a JSON object within the logs by searching for
                 # opening braces and attempting to parse from the last ones.
@@ -185,10 +187,13 @@ class DockerManager:
 
                 if results is None:
                     logger.error(f"Failed to parse container output: {logs}")
-                    results = {"error": "Failed to parse analysis results", "raw_logs": logs}
+                    results = {
+                        "error": "Failed to parse analysis results",
+                        "raw_logs": logs,
+                    }
                     success = False
                 else:
-                    success = result['StatusCode'] == 0
+                    success = result["StatusCode"] == 0
 
             logger.info(f"Static analysis completed: {container_id}")
             return success, results, container_id
@@ -199,7 +204,13 @@ class DockerManager:
 
         except docker.errors.ImageNotFound:
             logger.error(f"Image not found: {settings.static_analysis_image}")
-            return False, {"error": f"Analysis image not found: {settings.static_analysis_image}"}, "none"
+            return (
+                False,
+                {
+                    "error": f"Analysis image not found: {settings.static_analysis_image}"
+                },
+                "none",
+            )
 
         except Exception as e:
             logger.error(f"Static analysis failed: {e}", exc_info=True)
@@ -218,7 +229,7 @@ class DockerManager:
         sample_path: Path,
         network_id: str,
         timeout: int = 60,
-        original_filename: str = 'sample.bin'
+        original_filename: str = "sample.bin",
     ) -> Tuple[bool, Dict, str]:
         """
         Run dynamic analysis container with network monitoring.
@@ -240,13 +251,13 @@ class DockerManager:
                 raise FileNotFoundError(f"Sample not found: {sample_path}")
 
             # Create workspace directory inside quarantine for sample
-            analysis_temp_dir = settings.upload_dir / '_analysis_temp'
+            analysis_temp_dir = settings.upload_dir / "_analysis_temp"
             analysis_temp_dir.mkdir(parents=True, exist_ok=True)
             os.chmod(analysis_temp_dir, 0o755)
-            
-            work_dir = tempfile.mkdtemp(prefix='dynamic_', dir=str(analysis_temp_dir))
+
+            work_dir = tempfile.mkdtemp(prefix="dynamic_", dir=str(analysis_temp_dir))
             os.chmod(work_dir, 0o755)  # Allow non-root user in container to access
-            sample_dest = os.path.join(work_dir, 'sample.bin')
+            sample_dest = os.path.join(work_dir, "sample.bin")
             shutil.copy2(str(sample_path), sample_dest)
             os.chmod(sample_dest, 0o644)  # World-readable
 
@@ -256,27 +267,42 @@ class DockerManager:
                 host_work_dir = str(Path(settings.host_quarantine_path) / relative_path)
             else:
                 host_work_dir = work_dir
-            
-            logger.error(f"DEBUG: Dynamic work dir: container={work_dir}, host={host_work_dir}")
+
+            logger.error(
+                f"DEBUG: Dynamic work dir: container={work_dir}, host={host_work_dir}"
+            )
 
             # Retrieve Gateway IP to use as DNS
             gateway_ip = None
             try:
                 # Find the gateway container on this network
-                containers = self.client.containers.list(filters={'network': network_id})
+                containers = self.client.containers.list(
+                    filters={"network": network_id}
+                )
                 for c in containers:
-                    if settings.network_gateway_image in c.image.tags or 'network-gateway' in c.name:
+                    if (
+                        settings.network_gateway_image in c.image.tags
+                        or "network-gateway" in c.name
+                    ):
                         # Refresh to get latest networking info
                         c.reload()
-                        net_info = c.attrs.get('NetworkSettings', {}).get('Networks', {}).get(network_id, {})
+                        net_info = (
+                            c.attrs.get("NetworkSettings", {})
+                            .get("Networks", {})
+                            .get(network_id, {})
+                        )
                         if not net_info:
                             # Try by network name if network_id is not the key
-                            for name, info in c.attrs.get('NetworkSettings', {}).get('Networks', {}).items():
-                                if info.get('NetworkID') == network_id:
+                            for name, info in (
+                                c.attrs.get("NetworkSettings", {})
+                                .get("Networks", {})
+                                .items()
+                            ):
+                                if info.get("NetworkID") == network_id:
                                     net_info = info
                                     break
-                        
-                        gateway_ip = net_info.get('IPAddress')
+
+                        gateway_ip = net_info.get("IPAddress")
                         if gateway_ip:
                             break
             except Exception as e:
@@ -284,28 +310,34 @@ class DockerManager:
 
             # Container configuration
             container_config = {
-                'image': settings.dynamic_analysis_image,
-                'detach': True,
-                'network': network_id,  # Attach to isolated analysis network (connects to gateway)
-                'mem_limit': '2g',
-                'cpu_quota': 100000,
+                "image": settings.dynamic_analysis_image,
+                "detach": True,
+                "network": network_id,  # Attach to isolated analysis network (connects to gateway)
+                "mem_limit": "2g",
+                "cpu_quota": 100000,
                 # 'security_opt': ['no-new-privileges:true'],
-                'cap_drop': ['ALL'],
-                'cap_add': ['SYS_PTRACE', 'NET_RAW', 'NET_ADMIN'],  # Needed for strace, tcpdump and iptables
-                'tmpfs': {
-                    '/tmp': 'size=100M,mode=1777,exec'
+                "cap_drop": ["ALL"],
+                "cap_add": [
+                    "SYS_PTRACE",
+                    "NET_RAW",
+                    "NET_ADMIN",
+                ],  # Needed for strace, tcpdump and iptables
+                "tmpfs": {"/tmp": "size=100M,mode=1777,exec"},
+                "volumes": {
+                    host_work_dir: {"bind": "/analysis/workspace", "mode": "rw"}
                 },
-                'volumes': {
-                    host_work_dir: {'bind': '/analysis/workspace', 'mode': 'rw'}
+                "environment": {
+                    "ANALYSIS_TIMEOUT": str(timeout),
+                    "EXECUTION_TIMEOUT": str(settings.dynamic_execution_timeout),
+                    "ORIGINAL_FILENAME": original_filename,
+                    "GATEWAY_IP": gateway_ip or "",
                 },
-                'environment': {
-                    'ANALYSIS_TIMEOUT': str(timeout),
-                    'EXECUTION_TIMEOUT': str(settings.dynamic_execution_timeout),
-                    'ORIGINAL_FILENAME': original_filename,
-                    'GATEWAY_IP': gateway_ip or ""
-                },
-                'dns': [gateway_ip] if gateway_ip else None,
-                'command': ['python3', '/analysis/monitor.py', '/analysis/workspace/sample.bin']
+                "dns": [gateway_ip] if gateway_ip else None,
+                "command": [
+                    "python3",
+                    "/analysis/monitor.py",
+                    "/analysis/workspace/sample.bin",
+                ],
             }
 
             # Run container
@@ -317,17 +349,18 @@ class DockerManager:
             result = container.wait(timeout=timeout + 30)
 
             # Get logs (contains JSON results)
-            logs = container.logs().decode('utf-8')
+            logs = container.logs().decode("utf-8")
 
             # Parse results robustly: try to parse whole output first, then
             # search for a JSON object substring (try from last '{' backwards).
             # If that fails, look for a results file written to the mounted
             # workspace by the monitor (monitor_results_<pid>.json).
             import json, re, glob
+
             results = None
             try:
                 results = json.loads(logs)
-                success = result['StatusCode'] == 0
+                success = result["StatusCode"] == 0
             except json.JSONDecodeError:
                 # Try to locate a JSON object within the logs by searching for
                 # opening braces and attempting to parse from the last ones.
@@ -360,11 +393,13 @@ class DockerManager:
                 if results is None:
                     try:
                         # host_work_dir is the path mounted into the container
-                        pattern = os.path.join(host_work_dir, 'monitor_results_*.json')
-                        files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
+                        pattern = os.path.join(host_work_dir, "monitor_results_*.json")
+                        files = sorted(
+                            glob.glob(pattern), key=os.path.getmtime, reverse=True
+                        )
                         for fp in files:
                             try:
-                                with open(fp, 'r', encoding='utf-8') as fh:
+                                with open(fp, "r", encoding="utf-8") as fh:
                                     results = json.load(fh)
                                     logger.debug(f"Loaded results from file: {fp}")
                                     break
@@ -375,10 +410,13 @@ class DockerManager:
 
                 if results is None:
                     logger.error(f"Failed to parse container output: {logs}")
-                    results = {"error": "Failed to parse analysis results", "raw_logs": logs}
+                    results = {
+                        "error": "Failed to parse analysis results",
+                        "raw_logs": logs,
+                    }
                     success = False
                 else:
-                    success = result['StatusCode'] == 0
+                    success = result["StatusCode"] == 0
 
             logger.info(f"Dynamic analysis completed: {container_id}")
             return success, results, container_id
@@ -389,7 +427,13 @@ class DockerManager:
 
         except docker.errors.ImageNotFound:
             logger.error(f"Image not found: {settings.dynamic_analysis_image}")
-            return False, {"error": f"Analysis image not found: {settings.dynamic_analysis_image}"}, "none"
+            return (
+                False,
+                {
+                    "error": f"Analysis image not found: {settings.dynamic_analysis_image}"
+                },
+                "none",
+            )
 
         except Exception as e:
             logger.error(f"Dynamic analysis failed: {e}", exc_info=True)
@@ -405,9 +449,7 @@ class DockerManager:
                 # shutil.rmtree(work_dir, ignore_errors=True)
 
     def run_network_gateway(
-        self,
-        network_id: str,
-        duration: int = 60
+        self, network_id: str, duration: int = 60
     ) -> Tuple[bool, str]:
         """
         Run network gateway container with INetSim.
@@ -423,17 +465,17 @@ class DockerManager:
         try:
             # Container configuration
             container_config = {
-                'image': settings.network_gateway_image,
-                'detach': True,
-                'privileged': True,
-                'network': network_id,
-                'mem_limit': '1g',
-                'cpu_quota': 50000,
+                "image": settings.network_gateway_image,
+                "detach": True,
+                "privileged": True,
+                "network": network_id,
+                "mem_limit": "1g",
+                "cpu_quota": 50000,
                 # 'security_opt': ['no-new-privileges:true'],
                 # 'cap_drop': ['ALL'],
-                'cap_add': ['NET_ADMIN', 'NET_RAW'],  # Needed for networking
-                'tmpfs': {'/tmp': 'size=100M,mode=1777'},
-                'command': ['/start_gateway.sh']
+                "cap_add": ["NET_ADMIN", "NET_RAW"],  # Needed for networking
+                "tmpfs": {"/tmp": "size=100M,mode=1777"},
+                "command": ["/start_gateway.sh"],
             }
 
             # Run container
@@ -500,7 +542,7 @@ class DockerManager:
         """
         try:
             container = self.client.containers.get(container_id)
-            return container.logs().decode('utf-8')
+            return container.logs().decode("utf-8")
         except Exception as e:
             logger.error(f"Failed to get logs for {container_id}: {e}")
             return ""
@@ -516,8 +558,7 @@ class DockerManager:
         try:
             # Find containers with our prefix
             containers = self.client.containers.list(
-                all=True,
-                filters={'name': 'pegasus-'}
+                all=True, filters={"name": "pegasus-"}
             )
 
             for container in containers:
@@ -544,7 +585,7 @@ class DockerManager:
         try:
             # Find networks with our prefix
             networks = self.client.networks.list(
-                filters={'name': settings.docker_network_prefix}
+                filters={"name": settings.docker_network_prefix}
             )
 
             for network in networks:

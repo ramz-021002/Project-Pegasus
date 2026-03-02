@@ -2,6 +2,7 @@
 File handling service for malware sample management.
 Handles file quarantine, encryption, hashing, and validation.
 """
+
 import hashlib
 import logging
 import magic
@@ -44,7 +45,7 @@ class FileHandler:
         """
         # Use a static salt for deterministic key derivation
         # In production, consider storing salt separately
-        salt = b'project_pegasus_salt_v1'
+        salt = b"project_pegasus_salt_v1"
 
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -79,7 +80,7 @@ class FileHandler:
         return {
             "sha256": sha256_hash.hexdigest(),
             "sha1": sha1_hash.hexdigest(),
-            "md5": md5_hash.hexdigest()
+            "md5": md5_hash.hexdigest(),
         }
 
     def get_file_type(self, file_path: Path) -> str:
@@ -100,7 +101,9 @@ class FileHandler:
             logger.error(f"Error identifying file type: {e}")
             return "unknown"
 
-    def validate_file(self, file_path: Path, original_filename: str) -> Tuple[bool, str]:
+    def validate_file(
+        self, file_path: Path, original_filename: str
+    ) -> Tuple[bool, str]:
         """
         Validate uploaded file.
 
@@ -114,20 +117,28 @@ class FileHandler:
         # Check file size
         file_size = file_path.stat().st_size
         if file_size > settings.max_upload_size:
-            return False, f"File size {file_size} exceeds maximum {settings.max_upload_size}"
+            return (
+                False,
+                f"File size {file_size} exceeds maximum {settings.max_upload_size}",
+            )
 
         if file_size == 0:
             return False, "File is empty"
 
         # Check file extension (skip if empty string is in allowed list - means allow all)
         file_ext = Path(original_filename).suffix.lower()
-        if settings.allowed_file_extensions and "" not in settings.allowed_file_extensions:
+        if (
+            settings.allowed_file_extensions
+            and "" not in settings.allowed_file_extensions
+        ):
             if file_ext not in settings.allowed_file_extensions:
                 return False, f"File extension {file_ext} not allowed"
 
         return True, ""
 
-    def quarantine_file(self, source_path: Path, original_filename: str) -> Tuple[Path, str, Dict[str, str]]:
+    def quarantine_file(
+        self, source_path: Path, original_filename: str
+    ) -> Tuple[Path, str, Dict[str, str]]:
         """
         Move file to quarantine directory with encryption.
 
@@ -143,7 +154,9 @@ class FileHandler:
 
         # Calculate hashes before encryption
         hashes = self.calculate_hashes(source_path)
-        logger.info(f"Calculated hashes for {original_filename}: SHA256={hashes['sha256'][:16]}...")
+        logger.info(
+            f"Calculated hashes for {original_filename}: SHA256={hashes['sha256'][:16]}..."
+        )
 
         # Read file content
         with open(source_path, "rb") as f:
@@ -224,11 +237,7 @@ class FileHandler:
         file_type = self.get_file_type(file_path)
         file_size = file_path.stat().st_size
 
-        return {
-            **hashes,
-            "file_type": file_type,
-            "file_size": file_size
-        }
+        return {**hashes, "file_type": file_type, "file_size": file_size}
 
 
 # Singleton instance

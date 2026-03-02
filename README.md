@@ -1,4 +1,4 @@
-# Project Pegasus 🛡️
+# Project Pegasus
 
 **Secure Malware Analysis Platform**
 
@@ -6,23 +6,26 @@ Project Pegasus is a comprehensive malware analysis platform that performs autom
 
 ## Features
 
-- **🔒 Secure Isolation**: All analysis runs in unprivileged, network-isolated Docker containers with resource limits and capability dropping.
-- **🔐 Robust Static Analysis**:
-    - PE Header & Import parsing
-    - **Intelligent String Ranking**: Prioritizes interesting APIs, paths, IPs, and URLs.
-    - **CAPA Integration**: Resilient capability detection for PE variants.
-    - YARA scanning and Entropy calculation.
-- **🔍 Advanced Dynamic Analysis**:
-    - **Unified Execution Monitoring**: Combines `strace` syscall logging with `psutil` process tracking.
-    - Wine & QEMU support for cross-architecture PE analysis.
-    - Behavioral logs for file operations and process creation.
-- **🌐 Network Traffic Capture**:
-    - **INetSim Integration**: Provides a simulated internet environment (DNS, HTTP, etc.).
-    - **IPv6 Support**: Full capture and parsing of IPv6 traffic and DNS (AAAA).
-- **🔎 Report Management**:
-    - **Hash Search**: Look up existing reports by SHA256.
-    - **One-Click Re-analysis**: Instantly trigger fresh analysis runs for any sample.
-- **💾 Unified Reporting**: Clean, real-time Web UI for monitoring progress and viewing results.
+- **Secure Isolation**: All analysis runs in unprivileged, network-isolated Docker containers with resource limits and capability dropping.
+- **Intelligent Threat Classification**: Automatically classifies samples as **Malicious**, **Suspicious**, or **Clean** based on comprehensive analysis indicators including ATT&CK techniques, behavioral patterns, and IOCs.
+- **Robust Static Analysis**:
+    - PE Header & Import parsing with suspicious API detection
+    - **Intelligent String Ranking**: Prioritizes interesting APIs, paths, IPs, and URLs
+    - **CAPA Integration**: ATT&CK technique mapping and malware behavior catalog (MBC) detection
+    - **XOR Analysis**: XORSearch/XORStrings integration for encoded payload detection
+    - YARA scanning and Entropy calculation for packer detection
+- **Advanced Dynamic Analysis**:
+    - **Unified Execution Monitoring**: Combines `strace` syscall logging with `psutil` process tracking
+    - Wine & QEMU support for cross-architecture PE analysis
+    - Behavioral analysis with process injection and command execution detection
+- **Network Traffic Capture**:
+    - **INetSim Integration**: Provides a simulated internet environment (DNS, HTTP, etc.)
+    - **IPv6 Support**: Full capture and parsing of IPv6 traffic and DNS (AAAA)
+- **Report Management**:
+    - **Smart Classification**: Real-time threat level assessment with color-coded results
+    - **Hash Search**: Look up existing reports by SHA256
+    - **One-Click Re-analysis**: Instantly trigger fresh analysis runs for any sample
+- **Unified Reporting**: Clean, real-time Web UI for monitoring progress and viewing comprehensive results
 
 ## Demo
 https://github.com/user-attachments/assets/b9e3c0b8-5239-4241-93b2-3172e2b81c85
@@ -69,6 +72,12 @@ Access the Web UI at: `http://localhost:3000` (or open the local file directly).
 ```bash
 python3 test_system.py
 ```
+### 4. Delete all the containers and volumes
+This would stop and remove ALL services and data
+```bash
+sudo docker system prune -a --volumes --force
+sudo docker-compose down -v --rmi all
+```
 
 ## API usage
 
@@ -79,37 +88,44 @@ python3 test_system.py
 
 ## Development Roadmap
 
-### Phase 1: Core Infrastructure ✅
+### Phase 1: Core Infrastructure
 - [x] Project structure & Database models
 - [x] Celery & Redis orchestration
 - [x] Secure file quarantine (AES-128 encryption)
 
-### Phase 2: Static Analysis ✅
-- [x] REMnux-based analyzer
+### Phase 2: Static Analysis
+- [x] Ubuntu-based analyzer with comprehensive toolset
 - [x] Intelligent String Ranking
-- [x] Robust CAPA integration
+- [x] Robust CAPA integration with ATT&CK mapping
+- [x] XORSearch/XORStrings for encoded payload detection
+- [x] Suspicious API import detection
 
-### Phase 3: Dynamic Analysis ✅
+### Phase 3: Dynamic Analysis
 - [x] Unified behavior monitoring (strace + psutil)
 - [x] Wine/QEMU binary emulation
 - [x] Process & File tracking
+- [x] Command execution and process injection detection
 
-### Phase 4: Network Analysis ✅
+### Phase 4: Network Analysis
 - [x] INetSim Gateway integration
 - [x] IPv6 & AAAA DNS support
 - [x] PCAP capture and automated parsing
 
-### Phase 5: UI & UX ✅
+### Phase 5: UI & Classification
 - [x] Real-time analysis polling
 - [x] Hash Search & Re-analysis
+- [x] **Intelligent Threat Classification**: Automated threat level assessment
+- [x] Color-coded results (Malicious/Suspicious/Clean)
 - [x] Prioritized multi-tab results view
 
 ### Phase 6: Hardening & Advanced Features (Current)
 - [ ] User Authentication & Multi-Tenancy
 - [ ] Advanced Memory Forensics integration
 - [ ] Automated Report Export (PDF/JSON)
+- [ ] Machine Learning-based classification enhancement
+- [ ] Custom YARA rule management interface
 
-## Security Warning ⚠️
+## Security Warning
 
 - **This system analyzes LIVE MALWARE**.
 - Always run on dedicated hardware or within a detached VM.
@@ -120,6 +136,8 @@ python3 test_system.py
 Educational and authorized security research purposes only.
 
 ## Acknowledgments
-- **REMnux** for the analysis toolset.
-- **INetSim** for the simulated network services.
-- **FastAPI** & **Celery** for the backend orchestration.
+- **Didier Stevens** for XORSearch/XORStrings and analysis tools
+- **Mandiant** for CAPA capability analysis framework
+- **INetSim** for the simulated network services
+- **FastAPI** & **Celery** for the backend orchestration
+- **MITRE ATT&CK** framework for threat intelligence mapping

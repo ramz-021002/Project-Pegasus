@@ -3,6 +3,7 @@
 Test script for Project Pegasus.
 Creates a benign test file and uploads it to verify the system works.
 """
+
 import requests
 import time
 import sys
@@ -48,7 +49,7 @@ def upload_sample():
             print("✅ Upload successful!")
             print(f"   Sample ID: {data['sample_id']}")
             print(f"   SHA256: {data['sha256']}")
-            return data['sample_id']
+            return data["sample_id"]
         else:
             print(f"❌ Upload failed: {response.status_code}")
             print(f"   Response: {response.text}")
@@ -69,14 +70,14 @@ def monitor_analysis(sample_id):
             response = requests.get(f"{API_BASE}/api/upload/{sample_id}", timeout=5)
             if response.status_code == 200:
                 data = response.json()
-                status = data['status']
+                status = data["status"]
 
-                print(f"   Status: {status}", end='\r')
+                print(f"   Status: {status}", end="\r")
 
-                if status == 'completed':
+                if status == "completed":
                     print("\n✅ Analysis completed!")
                     return True
-                elif status == 'failed':
+                elif status == "failed":
                     print("\n❌ Analysis failed!")
                     return False
 
@@ -103,12 +104,12 @@ def get_results(sample_id):
             print(f"   - File Size: {data['file_size']} bytes")
             print(f"   - File Type: {data['file_type']}")
 
-            if 'analysis_results' in data:
+            if "analysis_results" in data:
                 print(f"\n   Analysis Results:")
-                for analysis_type, result in data['analysis_results'].items():
+                for analysis_type, result in data["analysis_results"].items():
                     print(f"   - {analysis_type.upper()}: {result['status']}")
 
-            if data.get('network_indicators'):
+            if data.get("network_indicators"):
                 print(f"\n   Network Indicators: {len(data['network_indicators'])}")
 
             return True

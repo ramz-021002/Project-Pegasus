@@ -1,11 +1,21 @@
 """Database models and connection management."""
+
 import enum
 import uuid
 from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    Column, String, Integer, DateTime, Enum, ForeignKey, Text, Index, TIMESTAMP, BigInteger
+    Column,
+    String,
+    Integer,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Text,
+    Index,
+    TIMESTAMP,
+    BigInteger,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
@@ -21,6 +31,7 @@ Base = declarative_base()
 
 class SampleStatus(enum.Enum):
     """Status of malware sample analysis."""
+
     PENDING = "pending"
     ANALYZING = "analyzing"
     COMPLETED = "completed"
@@ -29,6 +40,7 @@ class SampleStatus(enum.Enum):
 
 class AnalysisType(enum.Enum):
     """Type of analysis performed."""
+
     STATIC = "static"
     DYNAMIC = "dynamic"
     NETWORK = "network"
@@ -36,6 +48,7 @@ class AnalysisType(enum.Enum):
 
 class AnalysisStatus(enum.Enum):
     """Status of individual analysis task."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -44,6 +57,7 @@ class AnalysisStatus(enum.Enum):
 
 class IndicatorType(enum.Enum):
     """Type of network indicator."""
+
     IP = "ip"
     DOMAIN = "domain"
     URL = "url"
@@ -52,6 +66,7 @@ class IndicatorType(enum.Enum):
 
 class Sample(Base):
     """Malware sample metadata and tracking."""
+
     __tablename__ = "samples"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -66,8 +81,12 @@ class Sample(Base):
     status = Column(Enum(SampleStatus), nullable=False, default=SampleStatus.PENDING)
 
     # Relationships
-    analysis_results = relationship("AnalysisResult", back_populates="sample", cascade="all, delete-orphan")
-    network_indicators = relationship("NetworkIndicator", back_populates="sample", cascade="all, delete-orphan")
+    analysis_results = relationship(
+        "AnalysisResult", back_populates="sample", cascade="all, delete-orphan"
+    )
+    network_indicators = relationship(
+        "NetworkIndicator", back_populates="sample", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<Sample(id={self.id}, sha256={self.sha256[:16]}..., status={self.status})>"
@@ -75,14 +94,19 @@ class Sample(Base):
 
 class AnalysisResult(Base):
     """Results from individual analysis tasks."""
+
     __tablename__ = "analysis_results"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    sample_id = Column(UUID(as_uuid=True), ForeignKey("samples.id", ondelete="CASCADE"), nullable=False)
+    sample_id = Column(
+        UUID(as_uuid=True), ForeignKey("samples.id", ondelete="CASCADE"), nullable=False
+    )
     analysis_type = Column(Enum(AnalysisType), nullable=False)
     started_at = Column(TIMESTAMP, nullable=False, default=datetime.utcnow)
     completed_at = Column(TIMESTAMP, nullable=True)
-    status = Column(Enum(AnalysisStatus), nullable=False, default=AnalysisStatus.RUNNING)
+    status = Column(
+        Enum(AnalysisStatus), nullable=False, default=AnalysisStatus.RUNNING
+    )
     results_json = Column(JSONB, nullable=True)
     container_id = Column(String(64), nullable=True)
     error_message = Column(Text, nullable=True)
@@ -92,8 +116,8 @@ class AnalysisResult(Base):
 
     # Indexes
     __table_args__ = (
-        Index('idx_sample_analysis', 'sample_id', 'analysis_type'),
-        Index('idx_status', 'status'),
+        Index("idx_sample_analysis", "sample_id", "analysis_type"),
+        Index("idx_status", "status"),
     )
 
     def __repr__(self):
@@ -102,10 +126,13 @@ class AnalysisResult(Base):
 
 class NetworkIndicator(Base):
     """Network indicators extracted from malware analysis."""
+
     __tablename__ = "network_indicators"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    sample_id = Column(UUID(as_uuid=True), ForeignKey("samples.id", ondelete="CASCADE"), nullable=False)
+    sample_id = Column(
+        UUID(as_uuid=True), ForeignKey("samples.id", ondelete="CASCADE"), nullable=False
+    )
     indicator_type = Column(Enum(IndicatorType), nullable=False)
     value = Column(Text, nullable=False)
     first_seen = Column(TIMESTAMP, nullable=False, default=datetime.utcnow)
@@ -117,9 +144,9 @@ class NetworkIndicator(Base):
 
     # Indexes
     __table_args__ = (
-        Index('idx_indicator_value', 'value'),
-        Index('idx_indicator_type', 'indicator_type'),
-        Index('idx_sample_indicators', 'sample_id', 'indicator_type'),
+        Index("idx_indicator_value", "value"),
+        Index("idx_indicator_type", "indicator_type"),
+        Index("idx_sample_indicators", "sample_id", "indicator_type"),
     )
 
     def __repr__(self):
@@ -132,7 +159,7 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
-    echo=settings.debug
+    echo=settings.debug,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -190,7 +217,9 @@ class DatabaseOperations:
         return db.query(Sample).filter(Sample.id == sample_id).first()
 
     @staticmethod
-    def update_sample_status(db: Session, sample_id: uuid.UUID, status: SampleStatus) -> None:
+    def update_sample_status(
+        db: Session, sample_id: uuid.UUID, status: SampleStatus
+    ) -> None:
         """Update sample status."""
         db.query(Sample).filter(Sample.id == sample_id).update({"status": status})
         db.commit()
@@ -210,19 +239,18 @@ class DatabaseOperations:
         result_id: uuid.UUID,
         status: AnalysisStatus,
         results_json: Optional[dict] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ) -> None:
         """Update analysis result."""
-        update_data = {
-            "status": status,
-            "completed_at": datetime.utcnow()
-        }
+        update_data = {"status": status, "completed_at": datetime.utcnow()}
         if results_json:
             update_data["results_json"] = results_json
         if error_message:
             update_data["error_message"] = error_message
 
-        db.query(AnalysisResult).filter(AnalysisResult.id == result_id).update(update_data)
+        db.query(AnalysisResult).filter(AnalysisResult.id == result_id).update(
+            update_data
+        )
         db.commit()
 
     @staticmethod
@@ -237,9 +265,19 @@ class DatabaseOperations:
     @staticmethod
     def get_all_samples(db: Session, limit: int = 100, offset: int = 0):
         """Get all samples with pagination."""
-        return db.query(Sample).order_by(Sample.upload_timestamp.desc()).offset(offset).limit(limit).all()
+        return (
+            db.query(Sample)
+            .order_by(Sample.upload_timestamp.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
 
     @staticmethod
     def get_indicators_for_sample(db: Session, sample_id: uuid.UUID):
         """Get all network indicators for a sample."""
-        return db.query(NetworkIndicator).filter(NetworkIndicator.sample_id == sample_id).all()
+        return (
+            db.query(NetworkIndicator)
+            .filter(NetworkIndicator.sample_id == sample_id)
+            .all()
+        )

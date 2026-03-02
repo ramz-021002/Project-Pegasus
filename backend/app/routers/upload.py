@@ -2,12 +2,22 @@
 File upload router for malware sample submission.
 Handles file uploads, validation, and analysis initiation.
 """
+
 import logging
 import tempfile
 from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status, Form, Query
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    Depends,
+    HTTPException,
+    status,
+    Form,
+    Query,
+)
 from sqlalchemy.orm import Session
 
 from app.database import get_db, Sample, SampleStatus, DatabaseOperations
@@ -24,8 +34,10 @@ router = APIRouter()
 async def upload_sample(
     file: UploadFile = File(..., description="Malware sample file"),
     password: str = Form(None, description="Password for zip file (if applicable)"),
-    reanalyze: bool = Form(False, description="Re-analyze and overwrite if sample exists"),
-    db: Session = Depends(get_db)
+    reanalyze: bool = Form(
+        False, description="Re-analyze and overwrite if sample exists"
+    ),
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     Upload a malware sample for analysis.
@@ -45,10 +57,8 @@ async def upload_sample(
     # Validate filename
     if not file.filename:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Filename is required"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required"
         )
-
 
     # Create temporary file for initial processing
     temp_file = None
@@ -74,7 +84,7 @@ async def upload_sample(
                 logger.error(f"Failed to extract zip: {e}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Failed to extract zip: {str(e)}"
+                    detail=f"Failed to extract zip: {str(e)}",
                 )
             process_file = extracted_file
             process_filename = extracted_file.name
@@ -83,12 +93,13 @@ async def upload_sample(
             process_filename = file.filename
 
         # Validate file
-        is_valid, error_message = file_handler.validate_file(process_file, process_filename)
+        is_valid, error_message = file_handler.validate_file(
+            process_file, process_filename
+        )
         if not is_valid:
             logger.warning(f"File validation failed: {error_message}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_message
+                status_code=status.HTTP_400_BAD_REQUEST, detail=error_message
             )
 
         # Get file information and hashes
@@ -96,7 +107,9 @@ async def upload_sample(
         logger.info(f"File SHA256: {file_info['sha256']}")
 
         # Check if sample already exists
-        existing_sample = DatabaseOperations.get_sample_by_sha256(db, file_info['sha256'])
+        existing_sample = DatabaseOperations.get_sample_by_sha256(
+            db, file_info["sha256"]
+        )
         if existing_sample:
             logger.info(f"Sample already exists: {existing_sample.id}")
             if not reanalyze:
@@ -106,12 +119,13 @@ async def upload_sample(
                     "sha256": existing_sample.sha256,
                     "status": existing_sample.status.value,
                     "upload_timestamp": existing_sample.upload_timestamp.isoformat(),
-                    "can_reanalyze": True
+                    "can_reanalyze": True,
                 }
             # Overwrite: update status and trigger re-analysis
             existing_sample.status = SampleStatus.PENDING
             db.commit()
             from app.tasks.orchestration import analyze_sample
+
             analyze_sample.delay(str(existing_sample.id))
             return {
                 "message": "Sample re-analysis started. Previous results will be overwritten.",
@@ -119,32 +133,32 @@ async def upload_sample(
                 "sha256": existing_sample.sha256,
                 "status": existing_sample.status.value,
                 "upload_timestamp": existing_sample.upload_timestamp.isoformat(),
-                "reanalyze": True
+                "reanalyze": True,
             }
 
         # Quarantine and encrypt file
         quarantine_path, encryption_key_id, hashes = file_handler.quarantine_file(
-            process_file,
-            process_filename
+            process_file, process_filename
         )
 
         # Create database record
         sample = DatabaseOperations.create_sample(
             db=db,
-            sha256=hashes['sha256'],
-            md5=hashes['md5'],
-            sha1=hashes['sha1'],
-            file_size=file_info['file_size'],
-            file_type=file_info['file_type'],
+            sha256=hashes["sha256"],
+            md5=hashes["md5"],
+            sha1=hashes["sha1"],
+            file_size=file_info["file_size"],
+            file_type=file_info["file_type"],
             original_filename=process_filename,
             encryption_key_id=encryption_key_id,
-            status=SampleStatus.PENDING
+            status=SampleStatus.PENDING,
         )
 
         logger.info(f"Sample created: {sample.id}")
 
         # Trigger Celery task for analysis
         from app.tasks.orchestration import analyze_sample
+
         analyze_sample.delay(str(sample.id))
 
         return {
@@ -157,7 +171,7 @@ async def upload_sample(
             "file_type": sample.file_type,
             "original_filename": sample.original_filename,
             "status": sample.status.value,
-            "upload_timestamp": sample.upload_timestamp.isoformat()
+            "upload_timestamp": sample.upload_timestamp.isoformat(),
         }
 
     except HTTPException:
@@ -168,7 +182,7 @@ async def upload_sample(
         logger.error(f"Error processing upload: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing upload: {str(e)}"
+            detail=f"Error processing upload: {str(e)}",
         )
 
     finally:
@@ -184,39 +198,43 @@ async def upload_sample(
 
 @router.get("/{sample_id}")
 async def get_sample_status(
-    sample_id: str,
-    db: Session = Depends(get_db)
+    sample_id: str, db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     Get status of a malware sample analysis.
     """
     try:
         import uuid
+
         sample_uuid = uuid.UUID(sample_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid sample ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid sample ID format"
         )
 
     sample = DatabaseOperations.get_sample_by_id(db, sample_uuid)
     if not sample:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sample not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found"
         )
 
     # Get analysis results
     analysis_results = []
     for result in sample.analysis_results:
-        analysis_results.append({
-            "id": str(result.id),
-            "type": result.analysis_type.value,
-            "status": result.status.value,
-            "started_at": result.started_at.isoformat() if result.started_at else None,
-            "completed_at": result.completed_at.isoformat() if result.completed_at else None,
-            "error_message": result.error_message
-        })
+        analysis_results.append(
+            {
+                "id": str(result.id),
+                "type": result.analysis_type.value,
+                "status": result.status.value,
+                "started_at": (
+                    result.started_at.isoformat() if result.started_at else None
+                ),
+                "completed_at": (
+                    result.completed_at.isoformat() if result.completed_at else None
+                ),
+                "error_message": result.error_message,
+            }
+        )
 
     return {
         "sample_id": str(sample.id),
@@ -228,15 +246,13 @@ async def get_sample_status(
         "original_filename": sample.original_filename,
         "status": sample.status.value,
         "upload_timestamp": sample.upload_timestamp.isoformat(),
-        "analysis_results": analysis_results
+        "analysis_results": analysis_results,
     }
 
 
 @router.get("/")
 async def list_samples(
-    limit: int = 100,
-    offset: int = 0,
-    db: Session = Depends(get_db)
+    limit: int = 100, offset: int = 0, db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     List all uploaded samples with pagination.
@@ -258,8 +274,8 @@ async def list_samples(
                 "file_type": sample.file_type,
                 "original_filename": sample.original_filename,
                 "status": sample.status.value,
-                "upload_timestamp": sample.upload_timestamp.isoformat()
+                "upload_timestamp": sample.upload_timestamp.isoformat(),
             }
             for sample in samples
-        ]
+        ],
     }
